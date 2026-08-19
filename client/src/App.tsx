@@ -289,6 +289,7 @@ function AppShell({ children }: { children: ReactNode }) {
           <div className="footer-brand"><strong>植松康希</strong><span>Koki Uematsu</span></div>
           <nav className="footer-nav" aria-label="フッターナビゲーション">
             {navItems.slice(1).map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}
+            <Link href="/privacy">Privacy Policy</Link>
           </nav>
           <p className="footer-note">© {new Date().getFullYear()} Koki Uematsu</p>
         </div>
@@ -523,12 +524,36 @@ function SocialPage() {
   );
 }
 
+function PrivacyPage() {
+  return (
+    <AppShell>
+      <PageHero eyebrow="Privacy Policy" title="プライバシーポリシー" lead="本サイトにおける個人情報およびアクセス情報の取り扱いについてお知らせします。" />
+      <section className="content-section policy-section">
+        <article className="policy-card" data-reveal>
+          <p className="policy-updated">最終更新日：2026年8月19日</p>
+          <p>植松康希（以下「運営者」）は、本サイトを利用する方のプライバシーを尊重し、個人情報および関連する情報を適切に取り扱います。</p>
+
+          <section><h2>1. 取得する情報</h2><p>お問い合わせやSNSのダイレクトメッセージを通じて、氏名、メールアドレス、送信内容などの情報をご本人から提供いただく場合があります。また、サイトの利用状況を把握するため、閲覧したページ、利用日時、端末やブラウザに関する情報など、個人を直接特定しないアクセス情報を取得する場合があります。</p></section>
+          <section><h2>2. 利用目的</h2><p>取得した情報は、お問い合わせへの対応、必要な連絡、本サイトの表示・安全性・使いやすさの改善、および不正利用の防止のために使用します。これらの目的に必要な範囲を超えて利用することはありません。</p></section>
+          <section><h2>3. アクセス解析とCookie</h2><p>本サイトでは、利用状況の把握と改善のためにアクセス解析を利用する場合があります。アクセス解析ではCookieその他の技術を利用することがありますが、閲覧者を直接特定する情報を取得することを目的とするものではありません。Cookieはブラウザの設定により無効化できますが、一部の機能や表示に影響する場合があります。</p></section>
+          <section><h2>4. 外部サービスの利用</h2><p>本サイトでは、お知らせの表示にmicroCMSを利用しています。また、SNSページから外部のSNSやサービスへ移動できるリンクを掲載する場合があります。外部サービス上での情報の取り扱いについては、それぞれのサービスが定めるプライバシーポリシーをご確認ください。</p></section>
+          <section><h2>5. 第三者提供</h2><p>法令に基づく場合、人の生命・身体・財産の保護に必要な場合、またはご本人の同意をいただいた場合を除き、取得した個人情報を第三者へ提供しません。</p></section>
+          <section><h2>6. 安全管理</h2><p>個人情報への不正なアクセス、紛失、改ざん、漏えいなどを防ぐため、情報の性質に応じた合理的な安全管理措置を講じます。</p></section>
+          <section><h2>7. 開示・訂正・削除等のご相談</h2><p>ご自身の情報について、開示、訂正、削除、利用停止などをご希望の場合は、本人確認を行ったうえで、合理的な範囲で対応します。</p></section>
+          <section><h2>8. お問い合わせ先</h2><p>本ポリシーおよび個人情報の取り扱いに関するご連絡は、<Link className="policy-link" href="/contact">お問い合わせページ</Link>からお願いいたします。</p></section>
+          <section><h2>9. 本ポリシーの変更</h2><p>法令の改正、サービス内容の変更、その他必要に応じて、本ポリシーを見直し更新することがあります。変更後の内容は、本ページに掲載した時点から適用されます。</p></section>
+        </article>
+      </section>
+    </AppShell>
+  );
+}
+
 function NotFoundPage() {
   return <AppShell><section className="content-section not-found"><Eyebrow>404</Eyebrow><h1 className="page-title">ページが見つかりません</h1><Link className="pill-button pill-button--primary" href="/">ホームへ戻る <ArrowRight size={17} /></Link></section></AppShell>;
 }
 
 function Router() {
-  return <Switch><Route path="/" component={HomePage} /><Route path="/profile" component={ProfilePage} /><Route path="/news/:id" component={NewsArticlePage} /><Route path="/news" component={NewsPage} /><Route path="/sns" component={SocialPage} /><Route path="/contact" component={ContactPage} /><Route component={NotFoundPage} /></Switch>;
+  return <Switch><Route path="/" component={HomePage} /><Route path="/profile" component={ProfilePage} /><Route path="/news/:id" component={NewsArticlePage} /><Route path="/news" component={NewsPage} /><Route path="/sns" component={SocialPage} /><Route path="/contact" component={ContactPage} /><Route path="/privacy" component={PrivacyPage} /><Route component={NotFoundPage} /></Switch>;
 }
 
 export default function App() { return <Router />; }
