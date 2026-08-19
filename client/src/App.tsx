@@ -37,6 +37,8 @@ const BRAND_MARK = "/manus-storage/brand-symbol_c84124f7.png";
 const MICROCMS_DOMAIN = "1jzsnsr5i6";
 const MICROCMS_API_KEY = "MBWNeoQ3aihAV1yIErRAkHv3l3wnRETvU1Qj";
 const MICROCMS_NEWS_ENDPOINT = `https://${MICROCMS_DOMAIN}.microcms.io/api/v1/news`;
+const COOKIE_CONSENT_NAME = "koki_cookie_consent";
+const COOKIE_SETTINGS_EVENT = "koki:open-cookie-settings";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -45,6 +47,33 @@ const navItems = [
   { href: "/sns", label: "SNS & Links" },
   { href: "/contact", label: "Contact" },
 ];
+
+type CookieConsentChoice = "accepted" | "rejected";
+
+function getCookie(name: string) {
+  const prefix = `${encodeURIComponent(name)}=`;
+  const found = document.cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith(prefix));
+  return found ? decodeURIComponent(found.slice(prefix.length)) : "";
+}
+
+function saveCookieConsent(choice: CookieConsentChoice) {
+  const oneYearInSeconds = 60 * 60 * 24 * 365;
+  const secureAttribute = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${encodeURIComponent(COOKIE_CONSENT_NAME)}=${encodeURIComponent(choice)}; Path=/; Max-Age=${oneYearInSeconds}; SameSite=Lax${secureAttribute}`;
+}
+
+function loadAnalyticsAfterConsent() {
+  if (document.querySelector("script[data-consent-analytics='true']")) return;
+  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
+  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
+  if (!endpoint || !websiteId || endpoint.includes("%") || websiteId.includes("%")) return;
+  const script = document.createElement("script");
+  script.defer = true;
+  script.src = `${endpoint.replace(/\/$/, "")}/umami`;
+  script.dataset.websiteId = websiteId;
+  script.dataset.consentAnalytics = "true";
+  document.head.appendChild(script);
+}
 
 type NewsItem = {
   id: string;
@@ -290,11 +319,13 @@ function AppShell({ children }: { children: ReactNode }) {
           <nav className="footer-nav" aria-label="フッターナビゲーション">
             {navItems.slice(1).map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}
             <Link href="/privacy">Privacy Policy</Link>
+            <button className="footer-cookie-settings" type="button" onClick={() => window.dispatchEvent(new Event(COOKIE_SETTINGS_EVENT))}>Cookie設定</button>
           </nav>
           <p className="footer-note">© {new Date().getFullYear()} Koki Uematsu</p>
         </div>
       </footer>
       <BackToTop />
+      <CookieConsent />
     </div>
   );
 }
@@ -319,6 +350,39 @@ function BackToTop() {
   };
 
   return <button className={`back-to-top ${visible ? "back-to-top--visible" : ""}`} type="button" aria-label="ページの先頭へ戻る" onClick={returnToTop}><ArrowUp size={18} aria-hidden="true" /><span>Top</span></button>;
+}
+
+function CookieConsent() {
+  const [choice, setChoice] = useState<CookieConsentChoice | null>(() => {
+    const saved = getCookie(COOKIE_CONSENT_NAME);
+    return saved === "accepted" || saved === "rejected" ? saved : null;
+  });
+  const [isOpen, setIsOpen] = useState(() => !choice);
+
+  useEffect(() => {
+    if (choice === "accepted") loadAnalyticsAfterConsent();
+  }, [choice]);
+
+  useEffect(() => {
+    const openSettings = () => setIsOpen(true);
+    window.addEventListener(COOKIE_SETTINGS_EVENT, openSettings);
+    return () => window.removeEventListener(COOKIE_SETTINGS_EVENT, openSettings);
+  }, []);
+
+  const setConsent = (nextChoice: CookieConsentChoice) => {
+    saveCookieConsent(nextChoice);
+    setChoice(nextChoice);
+    setIsOpen(false);
+  };
+
+  if (!isOpen) return null;
+  const isSettings = choice !== null;
+  return (
+    <aside className="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookieの設定">
+      <div className="cookie-banner__copy"><p className="cookie-banner__eyebrow">Cookie Settings</p><h2>{isSettings ? "Cookieの設定を変更" : "Cookieの利用について"}</h2><p>本サイトでは、利用状況の把握と改善のためにアクセス解析用Cookieを使用する場合があります。同意を選ぶと、解析スクリプトを読み込みます。詳しくは<Link href="/privacy">プライバシーポリシー</Link>をご確認ください。</p></div>
+      <div className="cookie-banner__actions"><button className="cookie-button cookie-button--secondary" type="button" onClick={() => setConsent("rejected")}>拒否する</button><button className="cookie-button cookie-button--primary" type="button" onClick={() => setConsent("accepted")}>同意する</button></div>
+    </aside>
+  );
 }
 
 function PageHero({ eyebrow, title, lead, motif }: { eyebrow: string; title: string; lead: string; motif?: string }) {
@@ -535,7 +599,7 @@ function PrivacyPage() {
 
           <section><h2>1. 取得する情報</h2><p>お問い合わせやSNSのダイレクトメッセージを通じて、氏名、メールアドレス、送信内容などの情報をご本人から提供いただく場合があります。また、サイトの利用状況を把握するため、閲覧したページ、利用日時、端末やブラウザに関する情報など、個人を直接特定しないアクセス情報を取得する場合があります。</p></section>
           <section><h2>2. 利用目的</h2><p>取得した情報は、お問い合わせへの対応、必要な連絡、本サイトの表示・安全性・使いやすさの改善、および不正利用の防止のために使用します。これらの目的に必要な範囲を超えて利用することはありません。</p></section>
-          <section><h2>3. アクセス解析とCookie</h2><p>本サイトでは、利用状況の把握と改善のためにアクセス解析を利用する場合があります。アクセス解析ではCookieその他の技術を利用することがありますが、閲覧者を直接特定する情報を取得することを目的とするものではありません。Cookieはブラウザの設定により無効化できますが、一部の機能や表示に影響する場合があります。</p></section>
+          <section><h2>3. アクセス解析とCookie</h2><p>本サイトでは、利用状況の把握と改善のためにアクセス解析を利用する場合があります。初回表示時にCookieの利用について選択いただき、「同意する」を選んだ場合に限り解析スクリプトを読み込みます。選択内容はブラウザのCookieに保存され、フッターの「Cookie設定」からいつでも変更できます。Cookieはブラウザの設定により無効化できますが、一部の機能や表示に影響する場合があります。</p></section>
           <section><h2>4. 外部サービスの利用</h2><p>本サイトでは、お知らせの表示にmicroCMSを利用しています。また、SNSページから外部のSNSやサービスへ移動できるリンクを掲載する場合があります。外部サービス上での情報の取り扱いについては、それぞれのサービスが定めるプライバシーポリシーをご確認ください。</p></section>
           <section><h2>5. 第三者提供</h2><p>法令に基づく場合、人の生命・身体・財産の保護に必要な場合、またはご本人の同意をいただいた場合を除き、取得した個人情報を第三者へ提供しません。</p></section>
           <section><h2>6. 安全管理</h2><p>個人情報への不正なアクセス、紛失、改ざん、漏えいなどを防ぐため、情報の性質に応じた合理的な安全管理措置を講じます。</p></section>
