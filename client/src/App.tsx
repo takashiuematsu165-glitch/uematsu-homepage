@@ -385,9 +385,9 @@ function CookieConsent() {
   );
 }
 
-function PageHero({ eyebrow, title, lead, motif }: { eyebrow: string; title: string; lead: string; motif?: string }) {
+function PageHero({ eyebrow, title, lead, motif, pageClassName = "" }: { eyebrow: string; title: string; lead: string; motif?: string; pageClassName?: string }) {
   return (
-    <section className="page-hero">
+    <section className={`page-hero ${pageClassName}`}>
       {motif && <img className="page-hero__motif" src={motif} alt="" aria-hidden="true" />}
       <div className="page-hero__inner">
         <div data-reveal>
@@ -591,7 +591,7 @@ function SocialPage() {
 function PrivacyPage() {
   return (
     <AppShell>
-      <PageHero eyebrow="Privacy Policy" title="プライバシーポリシー" lead="本サイトにおける個人情報およびアクセス情報の取り扱いについてお知らせします。" />
+      <PageHero eyebrow="Privacy Policy" title="プライバシーポリシー" pageClassName="page-hero--privacy" lead="本サイトにおける個人情報およびアクセス情報の取り扱いについてお知らせします。" />
       <section className="content-section policy-section">
         <article className="policy-card" data-reveal>
           <p className="policy-updated">最終更新日：2026年8月19日</p>
