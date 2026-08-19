@@ -3,7 +3,7 @@
  * 情報の視認性と穏やかなマイクロインタラクションのみを改善する。
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, Route, Switch, useLocation } from "wouter";
+import { Link, Route, Switch, useLocation, useParams } from "wouter";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -28,6 +28,9 @@ const HERO_ORBS = "/manus-storage/hero-tech-orbs_2762c120.png";
 const CONTACT_MOTIF = "/manus-storage/contact-orbital-motif_46770c6d.png";
 const SOCIAL_MOTIF = "/manus-storage/social-constellation-motif_31a02147.png";
 const BRAND_MARK = "/manus-storage/brand-symbol_c84124f7.png";
+const MICROCMS_DOMAIN = "1jzsnsr5i6";
+const MICROCMS_API_KEY = "MBWNeoQ3aihAV1yIErRAkHv3l3wnRETvU1Qj";
+const MICROCMS_NEWS_ENDPOINT = `https://${MICROCMS_DOMAIN}.microcms.io/api/v1/news`;
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -37,21 +40,120 @@ const navItems = [
   { href: "/contact", label: "Contact" },
 ];
 
-function useRevealOnScroll() {
-  useEffect(() => {
-    const items = document.querySelectorAll<HTMLElement>("[data-reveal]");
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+type NewsItem = {
+  id: string;
+  title?: string;
+  publishedAt?: string;
+  content?: string;
+  excerpt?: string;
+  summary?: string;
+  description?: string;
+};
 
-    if (reduceMotion) {
-      items.forEach((item) => item.classList.add("is-visible"));
+type FetchState<T> = {
+  status: "loading" | "ready" | "empty" | "error";
+  data: T;
+};
+
+function formatNewsDate(date?: string) {
+  if (!date) return "";
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.valueOf()) ? "" : parsed.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function textFromHtml(value?: string) {
+  if (!value) return "";
+  const text = new DOMParser().parseFromString(value, "text/html").body.textContent?.replace(/\s+/g, " ").trim() ?? "";
+  return text.length > 92 ? `${text.slice(0, 92)}…` : text;
+}
+
+function newsExcerpt(item: NewsItem) {
+  return textFromHtml(item.excerpt || item.summary || item.description || item.content) || "お知らせの詳細をご覧ください。";
+}
+
+function sanitizeArticleHtml(value?: string) {
+  if (!value) return "";
+  const documentFragment = new DOMParser().parseFromString(value, "text/html");
+  documentFragment.querySelectorAll("script, style, iframe, object, embed, link").forEach((element) => element.remove());
+  documentFragment.querySelectorAll("*").forEach((element) => {
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const normalizedValue = attribute.value.trim().toLowerCase();
+      if (name.startsWith("on") || name === "style" || (name === "href" && normalizedValue.startsWith("javascript:")) || (name === "src" && normalizedValue.startsWith("javascript:"))) {
+        element.removeAttribute(attribute.name);
+      }
+    });
+  });
+  return documentFragment.body.innerHTML;
+}
+
+function useNewsList(limit: number) {
+  const [state, setState] = useState<FetchState<NewsItem[]>>({ status: "loading", data: [] });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ status: "loading", data: [] });
+    fetch(`${MICROCMS_NEWS_ENDPOINT}?limit=${limit}&orders=-publishedAt`, {
+      headers: { "X-MICROCMS-API-KEY": MICROCMS_API_KEY },
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("news fetch failed");
+        return response.json() as Promise<{ contents?: NewsItem[] }>;
+      })
+      .then((payload) => {
+        const contents = Array.isArray(payload.contents) ? payload.contents : [];
+        setState({ status: contents.length ? "ready" : "empty", data: contents });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setState({ status: "error", data: [] });
+      });
+    return () => controller.abort();
+  }, [limit]);
+
+  return state;
+}
+
+function useNewsArticle(id?: string) {
+  const [state, setState] = useState<FetchState<NewsItem | null>>({ status: "loading", data: null });
+
+  useEffect(() => {
+    if (!id) {
+      setState({ status: "error", data: null });
       return;
     }
+    const controller = new AbortController();
+    setState({ status: "loading", data: null });
+    fetch(`${MICROCMS_NEWS_ENDPOINT}/${encodeURIComponent(id)}`, {
+      headers: { "X-MICROCMS-API-KEY": MICROCMS_API_KEY },
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("article fetch failed");
+        return response.json() as Promise<NewsItem>;
+      })
+      .then((article) => setState({ status: "ready", data: article }))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setState({ status: "error", data: null });
+      });
+    return () => controller.abort();
+  }, [id]);
 
+  return state;
+}
+
+function useRevealOnScroll() {
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const revealed = new WeakSet<HTMLElement>();
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             (entry.target as HTMLElement).classList.add("is-visible");
+            revealed.add(entry.target as HTMLElement);
             observer.unobserve(entry.target);
           }
         });
@@ -59,8 +161,31 @@ function useRevealOnScroll() {
       { threshold: 0.12, rootMargin: "0px 0px -28px" },
     );
 
-    items.forEach((item) => observer.observe(item));
-    return () => observer.disconnect();
+    const observe = (item: HTMLElement) => {
+      if (revealed.has(item)) return;
+      if (reduceMotion) {
+        item.classList.add("is-visible");
+        revealed.add(item);
+        return;
+      }
+      observer.observe(item);
+    };
+    const observeReveals = (root: ParentNode) => {
+      if (root instanceof HTMLElement && root.hasAttribute("data-reveal")) observe(root);
+      root.querySelectorAll<HTMLElement>("[data-reveal]").forEach(observe);
+    };
+
+    observeReveals(document);
+    const mutationObserver = new MutationObserver((records) => {
+      records.forEach((record) => record.addedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) observeReveals(node);
+      }));
+    });
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+    };
   }, []);
 }
 
@@ -147,6 +272,36 @@ function PageHero({ eyebrow, title, lead, motif }: { eyebrow: string; title: str
   );
 }
 
+function NewsCard({ item, delay }: { item: NewsItem; delay?: string }) {
+  return (
+    <Link className="news-card news-card--link" href={`/news/${encodeURIComponent(item.id)}`} data-reveal style={{ transitionDelay: delay }}>
+      <span>{formatNewsDate(item.publishedAt) || "News"}</span>
+      <h3>{item.title || "お知らせ"}</h3>
+      <p>{newsExcerpt(item)}</p>
+      <span className="news-card__action">続きを読む <ArrowRight size={16} aria-hidden="true" /></span>
+    </Link>
+  );
+}
+
+function NewsListState({ status, compact = false }: { status: FetchState<NewsItem[]>["status"]; compact?: boolean }) {
+  if (status === "loading") return <div className={`news-state ${compact ? "news-state--compact" : ""}`} data-reveal><Newspaper size={19} aria-hidden="true" /><p>お知らせを読み込み中です。</p></div>;
+  if (status === "empty") return <div className="news-state" data-reveal><Newspaper size={19} aria-hidden="true" /><p>お知らせはまだありません。</p></div>;
+  return <div className="news-state news-state--error" data-reveal><CircleAlert size={19} aria-hidden="true" /><p>お知らせを取得できませんでした。時間をおいて再度お試しください。</p></div>;
+}
+
+function LatestNews() {
+  const news = useNewsList(2);
+  return (
+    <section className="content-section news-preview">
+      <div className="section-heading" data-reveal>
+        <div><Eyebrow>News</Eyebrow><h2>お知らせ</h2></div>
+        <Link className="inline-link" href="/news">一覧を見る <ArrowRight size={16} aria-hidden="true" /></Link>
+      </div>
+      {news.status === "ready" ? <div className="news-grid">{news.data.map((item, index) => <NewsCard key={item.id} item={item} delay={`${index * 70}ms`} />)}</div> : <NewsListState status={news.status} compact />}
+    </section>
+  );
+}
+
 function HomePage() {
   return (
     <AppShell>
@@ -166,16 +321,7 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="content-section news-preview">
-        <div className="section-heading" data-reveal>
-          <div><Eyebrow>News</Eyebrow><h2>お知らせ</h2></div>
-          <Link className="inline-link" href="/news">一覧を見る <ArrowRight size={16} aria-hidden="true" /></Link>
-        </div>
-        <div className="news-grid">
-          <article className="news-card" data-reveal><span>Site Update</span><h3>ホームページを更新しました</h3><p>コンテンツを少しずつ整備しています。</p></article>
-          <article className="news-card" data-reveal style={{ transitionDelay: "70ms" }}><span>Contact</span><h3>連絡先を見やすく整理しました</h3><p>用途に合わせて連絡手段を選べます。</p></article>
-        </div>
-      </section>
+      <LatestNews />
     </AppShell>
   );
 }
@@ -195,11 +341,27 @@ function ProfilePage() {
 }
 
 function NewsPage() {
+  const news = useNewsList(20);
   return (
     <AppShell>
-      <PageHero eyebrow="News" title="お知らせ" lead="サイトに関する更新や、これからの予定をお知らせします。" />
+      <PageHero eyebrow="News" title="お知らせ" lead="サイトに関する更新や、これからの予定を掲載しています。" />
       <section className="content-section narrow-section">
-        <article className="news-card news-card--large" data-reveal><span>Update</span><h2>お知らせを準備中です</h2><p>新しい情報があるときに、ここへ掲載します。</p></article>
+        {news.status === "ready" ? <div className="news-list">{news.data.map((item, index) => <NewsCard key={item.id} item={item} delay={`${index * 60}ms`} />)}</div> : <NewsListState status={news.status} />}
+      </section>
+    </AppShell>
+  );
+}
+
+function NewsArticlePage() {
+  const { id } = useParams<{ id: string }>();
+  const article = useNewsArticle(id);
+
+  return (
+    <AppShell>
+      <section className="content-section article-section">
+        {article.status === "loading" && <div className="news-state" data-reveal><Newspaper size={19} aria-hidden="true" /><p>記事を読み込み中です。</p></div>}
+        {article.status === "error" && <div className="news-state news-state--error" data-reveal><CircleAlert size={19} aria-hidden="true" /><p>記事を取得できませんでした。</p><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></div>}
+        {article.status === "ready" && article.data && <article className="article-card" data-reveal><p className="eyebrow">{formatNewsDate(article.data.publishedAt) || "News"}</p><h1 className="article-title">{article.data.title || "お知らせ"}</h1><div className="article-body" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.data.content || article.data.description || "") }} /><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></article>}
       </section>
     </AppShell>
   );
@@ -266,7 +428,7 @@ function NotFoundPage() {
 }
 
 function Router() {
-  return <Switch><Route path="/" component={HomePage} /><Route path="/profile" component={ProfilePage} /><Route path="/news" component={NewsPage} /><Route path="/sns" component={SocialPage} /><Route path="/contact" component={ContactPage} /><Route component={NotFoundPage} /></Switch>;
+  return <Switch><Route path="/" component={HomePage} /><Route path="/profile" component={ProfilePage} /><Route path="/news/:id" component={NewsArticlePage} /><Route path="/news" component={NewsPage} /><Route path="/sns" component={SocialPage} /><Route path="/contact" component={ContactPage} /><Route component={NotFoundPage} /></Switch>;
 }
 
 export default function App() { return <Router />; }
