@@ -6,20 +6,26 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, Route, Switch, useLocation, useParams } from "wouter";
 import {
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
   AtSign,
+  BookOpen,
+  Briefcase,
   CheckCircle2,
   CircleAlert,
+  CircleUserRound,
+  Code2,
   Clock3,
   Instagram,
   Link2,
   Mail,
   Menu,
   MessageCircle,
+  Music2,
   Newspaper,
   Send,
   ShieldCheck,
-  UserRound,
+  Video,
   X,
 } from "lucide-react";
 
@@ -48,6 +54,12 @@ type NewsItem = {
   excerpt?: string;
   summary?: string;
   description?: string;
+  category?: NewsCategory | NewsCategory[] | null;
+};
+
+type NewsCategory = {
+  id: string;
+  name?: string;
 };
 
 type FetchState<T> = {
@@ -69,6 +81,11 @@ function textFromHtml(value?: string) {
 
 function newsExcerpt(item: NewsItem) {
   return textFromHtml(item.excerpt || item.summary || item.description || item.content) || "お知らせの詳細をご覧ください。";
+}
+
+function categoryOf(item: NewsItem) {
+  const category = Array.isArray(item.category) ? item.category[0] : item.category;
+  return category?.id ? category : null;
 }
 
 function sanitizeArticleHtml(value?: string) {
@@ -111,6 +128,33 @@ function useNewsList(limit: number) {
       });
     return () => controller.abort();
   }, [limit]);
+
+  return state;
+}
+
+function useCategoryList() {
+  const [state, setState] = useState<FetchState<NewsCategory[]>>({ status: "loading", data: [] });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${MICROCMS_NEWS_ENDPOINT.replace(/\/news$/, "/categories")}?limit=100&orders=publishedAt`, {
+      headers: { "X-MICROCMS-API-KEY": MICROCMS_API_KEY },
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("category fetch failed");
+        return response.json() as Promise<{ contents?: NewsCategory[] }>;
+      })
+      .then((payload) => {
+        const contents = Array.isArray(payload.contents) ? payload.contents : [];
+        setState({ status: contents.length ? "ready" : "empty", data: contents });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setState({ status: "error", data: [] });
+      });
+    return () => controller.abort();
+  }, []);
 
   return state;
 }
@@ -249,12 +293,31 @@ function AppShell({ children }: { children: ReactNode }) {
           <p className="footer-note">© {new Date().getFullYear()} Koki Uematsu</p>
         </div>
       </footer>
+      <BackToTop />
     </div>
   );
 }
 
 function Eyebrow({ children }: { children: ReactNode }) {
   return <p className="eyebrow">{children}</p>;
+}
+
+function BackToTop() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const updateVisibility = () => setVisible(window.scrollY > 420);
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateVisibility);
+  }, []);
+
+  const returnToTop = () => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+  };
+
+  return <button className={`back-to-top ${visible ? "back-to-top--visible" : ""}`} type="button" aria-label="ページの先頭へ戻る" onClick={returnToTop}><ArrowUp size={18} aria-hidden="true" /><span>Top</span></button>;
 }
 
 function PageHero({ eyebrow, title, lead, motif }: { eyebrow: string; title: string; lead: string; motif?: string }) {
@@ -273,9 +336,11 @@ function PageHero({ eyebrow, title, lead, motif }: { eyebrow: string; title: str
 }
 
 function NewsCard({ item, delay }: { item: NewsItem; delay?: string }) {
+  const category = categoryOf(item);
   return (
     <Link className="news-card news-card--link" href={`/news/${encodeURIComponent(item.id)}`} data-reveal style={{ transitionDelay: delay }}>
       <span>{formatNewsDate(item.publishedAt) || "News"}</span>
+      {category?.name && <span className="news-category">{category.name}</span>}
       <h3>{item.title || "お知らせ"}</h3>
       <p>{newsExcerpt(item)}</p>
       <span className="news-card__action">続きを読む <ArrowRight size={16} aria-hidden="true" /></span>
@@ -341,12 +406,34 @@ function ProfilePage() {
 }
 
 function NewsPage() {
-  const news = useNewsList(20);
+  const news = useNewsList(100);
+  const categories = useCategoryList();
+  const [activeCategory, setActiveCategory] = useState("all");
+  const categoryOptions = categories.status === "ready" ? categories.data : [];
+  const hasUncategorizedNews = news.data.some((item) => !categoryOf(item));
+  const filteredNews = activeCategory === "all" ? news.data : activeCategory === "uncategorized" ? news.data.filter((item) => !categoryOf(item)) : news.data.filter((item) => categoryOf(item)?.id === activeCategory);
+
+  useEffect(() => {
+    const categoryStillExists = activeCategory === "all" || activeCategory === "uncategorized" ? activeCategory !== "uncategorized" || hasUncategorizedNews : categoryOptions.some((category) => category.id === activeCategory);
+    if (!categoryStillExists) setActiveCategory("all");
+  }, [activeCategory, categoryOptions, hasUncategorizedNews]);
+
   return (
     <AppShell>
       <PageHero eyebrow="News" title="お知らせ" lead="サイトに関する更新や、これからの予定を掲載しています。" />
       <section className="content-section narrow-section">
-        {news.status === "ready" ? <div className="news-list">{news.data.map((item, index) => <NewsCard key={item.id} item={item} delay={`${index * 60}ms`} />)}</div> : <NewsListState status={news.status} />}
+        {news.status === "ready" ? <>
+          <div className="category-filter" data-reveal aria-label="お知らせのカテゴリーで絞り込む">
+            <span className="category-filter__label">カテゴリー</span>
+            <div className="category-filter__controls" role="group" aria-label="カテゴリー">
+              <button type="button" className={activeCategory === "all" ? "is-active" : ""} aria-pressed={activeCategory === "all"} onClick={() => setActiveCategory("all")}>すべて</button>
+              {categoryOptions.map((category) => <button key={category.id} type="button" className={activeCategory === category.id ? "is-active" : ""} aria-pressed={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>{category.name || "名称未設定"}</button>)}
+              {hasUncategorizedNews && <button type="button" className={activeCategory === "uncategorized" ? "is-active" : ""} aria-pressed={activeCategory === "uncategorized"} onClick={() => setActiveCategory("uncategorized")}>未分類</button>}
+            </div>
+          </div>
+          <p className="news-count" data-reveal>{filteredNews.length}件のお知らせ</p>
+          {filteredNews.length ? <div className="news-list">{filteredNews.map((item, index) => <NewsCard key={item.id} item={item} delay={`${index * 60}ms`} />)}</div> : <div className="news-state" data-reveal><Newspaper size={19} aria-hidden="true" /><p>このカテゴリーのお知らせはまだありません。</p></div>}
+        </> : <NewsListState status={news.status} />}
       </section>
     </AppShell>
   );
@@ -410,13 +497,26 @@ function SocialLink({ icon, service, handle, purpose, status, href, delay }: Soc
 function SocialPage() {
   return (
     <AppShell>
-      <PageHero eyebrow="SNS & Links" title="SNS" motif={SOCIAL_MOTIF} lead="主に閲覧用・アイデア記録用として運用しています。なりすまし防止のため、公式アカウントはこのページから確認できます。" />
+      <PageHero eyebrow="SNS & Links" title="SNS" motif={SOCIAL_MOTIF} lead="閲覧用・発信・アイデア記録など、用途ごとにSNSをまとめています。なりすまし防止のため、公式リンクはこのページから確認できます。" />
       <section className="content-section social-section">
-        <div className="social-note" data-reveal><CheckCircle2 size={20} aria-hidden="true" /><p>このページに掲載しているものが公式アカウントです。各リンクは公開前に実URLを設定してください。</p></div>
-        <div className="social-stack">
-          <SocialLink icon={<Instagram size={23} />} service="Instagram" handle="@koki_uematsu" purpose="閲覧・発信・アイデア記録" status="リンク設定待ち" />
-          <SocialLink icon={<MessageCircle size={23} />} service="X / Twitter" handle="@koki_uematsu" purpose="短いお知らせ・日々の記録" status="リンク設定待ち" delay="70ms" />
-          <SocialLink icon={<Link2 size={23} />} service="Portfolio" handle="Web Portfolio" purpose="制作物やプロフィールのまとめ" status="リンク設定待ち" delay="140ms" />
+        <div className="social-note" data-reveal><CheckCircle2 size={20} aria-hidden="true" /><p>利用中のサービスだけ実URLを設定して公開できます。URL未設定の項目はリンク設定待ちとして表示し、誤ったアカウントへ移動しないようにしています。</p></div>
+        <div className="social-groups">
+          <section className="social-group"><p className="social-group__title">SNS・コミュニティ</p><div className="social-stack">
+            <SocialLink icon={<Instagram size={23} />} service="Instagram" handle="@koki_uematsu" purpose="閲覧・発信・アイデア記録" status="リンク設定待ち" />
+            <SocialLink icon={<MessageCircle size={23} />} service="X / Twitter" handle="@koki_uematsu" purpose="短いお知らせ・日々の記録" status="リンク設定待ち" delay="50ms" />
+            <SocialLink icon={<CircleUserRound size={23} />} service="Facebook" handle="Facebook Page" purpose="活動や更新のお知らせ" status="リンク設定待ち" delay="100ms" />
+            <SocialLink icon={<AtSign size={23} />} service="Threads" handle="Threads Account" purpose="気軽な近況や短い発信" status="リンク設定待ち" delay="150ms" />
+            <SocialLink icon={<Music2 size={23} />} service="TikTok" handle="TikTok Account" purpose="短い動画・アイデア記録" status="リンク設定待ち" delay="200ms" />
+            <SocialLink icon={<Video size={23} />} service="YouTube" handle="YouTube Channel" purpose="動画・制作記録" status="リンク設定待ち" delay="250ms" />
+            <SocialLink icon={<MessageCircle size={23} />} service="LINE公式アカウント" handle="LINE Official" purpose="連絡・お知らせの受け取り" status="リンク設定待ち" delay="300ms" />
+            <SocialLink icon={<MessageCircle size={23} />} service="Discord" handle="Discord Server" purpose="コミュニティ・チャット" status="準備中" delay="350ms" />
+          </div></section>
+          <section className="social-group"><p className="social-group__title">作品・プロフィール</p><div className="social-stack">
+            <SocialLink icon={<BookOpen size={23} />} service="note" handle="note Account" purpose="文章・考え・活動記録" status="リンク設定待ち" />
+            <SocialLink icon={<Code2 size={23} />} service="GitHub" handle="GitHub Profile" purpose="コード・制作プロジェクト" status="リンク設定待ち" delay="50ms" />
+            <SocialLink icon={<Briefcase size={23} />} service="LinkedIn" handle="LinkedIn Profile" purpose="経歴・つながり" status="リンク設定待ち" delay="100ms" />
+            <SocialLink icon={<Link2 size={23} />} service="Portfolio" handle="Web Portfolio" purpose="制作物やプロフィールのまとめ" status="リンク設定待ち" delay="150ms" />
+          </div></section>
         </div>
       </section>
     </AppShell>
