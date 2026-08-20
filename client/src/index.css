@@ -69,7 +69,8 @@ h2 { font-size: clamp(1.55rem,3vw,2.25rem); }
 .page-lead { margin: 0; }
 .page-hero--privacy .page-hero__inner { grid-template-columns: minmax(0,1.25fr) minmax(300px,.55fr); gap: 1.4rem; }.page-hero--privacy .page-title { white-space: nowrap; font-size: clamp(2.9rem,5.6vw,5.4rem); letter-spacing: -.075em; }
 
-.profile-card { display: grid; grid-template-columns: 150px minmax(0,1fr); align-items: center; gap: 1.5rem; max-width: 800px; padding: 1.5rem; border: 1px solid rgba(20,24,39,.08); border-radius: 28px; background: var(--panel); box-shadow: var(--shadow); }
+.profile-section { max-width: 820px; padding-top: 2.4rem; }
+.profile-card { display: grid; grid-template-columns: 150px minmax(0,1fr); align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid rgba(20,24,39,.08); border-radius: 28px; background: var(--panel); box-shadow: var(--shadow); }
 .profile-card > img { width: 150px; aspect-ratio: 1; border-radius: 25px; object-fit: cover; }
 .profile-card .eyebrow { margin-bottom: .35rem; }
 .profile-card p { max-width: 56ch; margin-top: 1rem; }

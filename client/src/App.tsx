@@ -563,7 +563,7 @@ function ProfilePage() {
   return (
     <AppShell>
       <PageHero eyebrow="Profile" title="プロフィール" lead="興味のあること、普段取り組んでいることを、少しずつまとめています。" />
-      <section className="content-section">
+      <section className="content-section profile-section">
         <article className="profile-card" data-reveal>
           <img src={PROFILE_IMAGE} alt="植松康希のプロフィール画像" />
           <div><Eyebrow>Koki Uematsu</Eyebrow><h2>植松康希</h2><p>パソコンに触れながら、興味を持ったことを試したり、考えたりしています。ここでは活動や発信先をまとめています。</p><ul className="tag-list"><li>Student</li><li>PC</li><li>Learning</li></ul></div>
