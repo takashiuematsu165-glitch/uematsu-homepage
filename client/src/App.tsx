@@ -3,7 +3,8 @@
  * 情報の視認性と穏やかなマイクロインタラクションのみを改善する。
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, Route, Switch, useLocation, useParams } from "wouter";
+import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from "wouter";
+import { useHashLocation } from "wouter/use-hash-location";
 import {
   ArrowRight,
   ArrowUp,
@@ -29,11 +30,12 @@ import {
   X,
 } from "lucide-react";
 
-const PROFILE_IMAGE = "/manus-storage/profile-thumb_08cdcf09.png";
-const HERO_ORBS = "/manus-storage/hero-tech-orbs_2762c120.png";
-const CONTACT_MOTIF = "/manus-storage/contact-orbital-motif_46770c6d.png";
-const SOCIAL_MOTIF = "/manus-storage/social-constellation-motif_31a02147.png";
-const BRAND_MARK = "/manus-storage/brand-symbol_c84124f7.png";
+const STATIC_ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
+const PROFILE_IMAGE = `${STATIC_ASSET_BASE}profile-thumb.png`;
+const HERO_ORBS = `${STATIC_ASSET_BASE}hero-tech-orbs.png`;
+const CONTACT_MOTIF = `${STATIC_ASSET_BASE}contact-orbital-motif.png`;
+const SOCIAL_MOTIF = `${STATIC_ASSET_BASE}social-constellation-motif.png`;
+const BRAND_MARK = `${STATIC_ASSET_BASE}brand-symbol.png`;
 const MICROCMS_DOMAIN = "1jzsnsr5i6";
 const MICROCMS_API_KEY = "MBWNeoQ3aihAV1yIErRAkHv3l3wnRETvU1Qj";
 const MICROCMS_NEWS_ENDPOINT = `https://${MICROCMS_DOMAIN}.microcms.io/api/v1/news`;
@@ -667,4 +669,4 @@ function Router() {
   return <Switch><Route path="/" component={HomePage} /><Route path="/profile" component={ProfilePage} /><Route path="/news/:id" component={NewsArticlePage} /><Route path="/news" component={NewsPage} /><Route path="/sns" component={SocialPage} /><Route path="/contact" component={ContactPage} /><Route path="/privacy" component={PrivacyPage} /><Route component={NotFoundPage} /></Switch>;
 }
 
-export default function App() { return <Router />; }
+export default function App() { return <WouterRouter hook={useHashLocation}><Router /></WouterRouter>; }

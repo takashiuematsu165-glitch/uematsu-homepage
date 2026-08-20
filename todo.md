@@ -63,3 +63,10 @@
 - [x] 未同意時にGoogle タグとクリックイベントを送信しないことを確認する。
 - [x] 同意時に測定ID G-S6GMRTWF52のGoogle タグを読み込むことを確認する。
 - [x] Contact・SNSクリックイベントの送信条件を確認する。
+
+## GitHub Pages公開タスク
+
+- [x] GitHubの認証状態とリポジトリ作成権限を確認する。
+- [x] GitHub Pages用のビルドと公開ワークフローを追加する。
+- [ ] `uematsu-homepage` リポジトリへコードを反映する。
+- [ ] GitHub Pagesの公開URLを確認する。
