@@ -172,23 +172,23 @@
 
 - [x] ブラウザ環境で発生しているreCAPTCHA通信失敗の要因を確認する。
 - [x] 通信失敗時に認証できないことを明確に案内し、メールアドレスを非表示のまま維持する。
-- [ ] 実ブラウザでreCAPTCHAを完了し、認証後のメール表示・コピーを確認する。
+- [x] 実ブラウザでreCAPTCHAを完了し、認証後のメール表示・コピーを確認する。
 
 ## reCAPTCHA Enterprise対応タスク
 
-- [ ] Enterpriseキーに対応するクライアントスクリプトと検証APIを確認する。
-- [ ] ContactページとCloudflare WorkerをEnterprise認証方式へ切り替える。
-- [ ] Enterprise認証後にメール表示・コピーできることを確認する。
+- [x] Enterpriseキーに対応するクライアントスクリプトと検証APIを確認する。
+- [x] ContactページとCloudflare WorkerをEnterprise認証方式へ切り替える。
+- [x] Enterprise認証後にメール表示・コピーできることを確認する。
 
 ## reCAPTCHA Enterprise認証失敗切り分けタスク
 
-- [ ] 認証完了後の画面メッセージとWorkerの検証応答を確認する。
-- [ ] Enterpriseキーに対応するGoogle Cloud評価APIまたはキー設定を確認する。
-- [ ] 認証成功後にメール表示・コピーできることを実ブラウザで確認する。
+- [x] 認証完了後の画面メッセージとWorkerの検証応答を確認する。
+- [x] Enterpriseキーに対応するGoogle Cloud評価APIまたはキー設定を確認する。
+- [x] 認証成功後にメール表示・コピーできることを実ブラウザで確認する。
 
 ## reCAPTCHA Enterprise v3対応タスク
 
-- [ ] v3アクショントークンを生成するContact導線へ切り替える。
-- [ ] Cloudflare WorkerからCreateAssessment APIを呼び出してトークンを評価する。
-- [ ] Google CloudのプロジェクトIDと制限済みAPIキーをCloudflareのシークレットに設定する。
-- [ ] 評価成功後にメール表示・コピーできることを確認する。
+- [x] v3アクショントークンを生成するContact導線へ切り替える。
+- [x] Cloudflare WorkerからCreateAssessment APIを呼び出してトークンを評価する。
+- [x] Google CloudのプロジェクトIDと制限済みAPIキーをCloudflareのシークレットに設定する。
+- [x] 評価成功後にメール表示・コピーできることを確認する。
