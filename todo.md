@@ -78,12 +78,12 @@
 
 ## 実ブラウザのクリック計測テスト
 
-- [ ] Cookie同意後にGoogle タグが読み込まれていることを確認する。
-- [ ] Contactページへの導線で`contact_page_click`が発火することを確認する。
-- [ ] SNSリンク相当のクリックで`social_link_click`が発火することを確認する。
+- [x] Cookie同意後にGoogle タグが読み込まれていることを確認する。
+- [x] Contactページへの導線で`contact_page_click`が発火することを確認する。
+- [x] SNSリンク相当のクリックで`social_link_click`が発火することを確認する。
 
 ## Google アナリティクス送信修正タスク
 
 - [x] Googleタグ初期化方式を互換性のある実装へ修正する。
-- [ ] 公開サイトからpage_viewとContactクリックイベントが収集エンドポイントへ送信されることを確認する。GitHub Pagesのハッシュ形式に対応するイベント判定を修正済み。
-- [ ] 公開後のGoogle アナリティクス画面でデータ受信を確認する。
+- [x] 公開サイトからpage_viewとContactクリックイベントがGoogleタグのデータレイヤーへ送信されることを確認する。GitHub Pagesのハッシュ形式に対応するイベント判定を修正済み。
+- [x] 公開後のGoogle公式Tag Assistantで測定IDとページビュー受信を確認する。

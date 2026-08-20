@@ -65,3 +65,5 @@ GitHub Pagesはgh-pagesブランチのルートを公開元として有効化さ
 キャッシュを回避するクエリ付きURLでも、Cookie同意済みのユーザーブラウザからContact導線のクリックを再実施した。Google アナリティクス受信画面では引き続きデータを確認できていないため、ブラウザ側または検証環境側でGoogleタグ通信がブロックされている可能性を調査している。
 
 Google公式Tag Assistantをユーザーブラウザで接続して確認したところ、公開サイトでは測定ID `G-S6GMRTWF52` のGoogleタグが検出され、`gtag('config')`、同意初期化、ページビューの送信が記録された。したがって、公開サイトのGoogleタグはブラウザ上で正常に機能していることを確認できた。管理画面の集計表示には反映まで時間差が生じる場合がある。
+
+GitHub Pages向けのハッシュルーティングではContactリンクが `#/contact` となるため、旧来の `/contact` だけを判定する実装ではContactイベントが発火しないことを特定した。両形式を判定するよう修正し、公開コードのテストで `contact_page_click` と、実URL設定後のSNSリンクに適用される `social_link_click` がデータレイヤーへ追加されることを確認した。サンドボックス側の自動通信検証では `googletagmanager.com` が `ERR_BLOCKED_BY_CLIENT` でブロックされるが、ユーザーブラウザ上のTag AssistantではGoogleタグとページビューを確認できている。
