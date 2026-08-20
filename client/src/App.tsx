@@ -312,7 +312,16 @@ function AppShell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [readableMode, setReadableMode] = useState(() => {
+    try { return window.localStorage.getItem("uematsu-readable-mode") === "enhanced"; } catch { return false; }
+  });
+  const mainRef = useRef<HTMLElement | null>(null);
   const scrollMilestonesRef = useRef(new Set<number>());
+
+  useEffect(() => {
+    document.documentElement.dataset.readability = readableMode ? "enhanced" : "default";
+    try { window.localStorage.setItem("uematsu-readable-mode", readableMode ? "enhanced" : "default"); } catch { /* Preference persistence is optional. */ }
+  }, [readableMode]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -392,8 +401,18 @@ function AppShell({ children }: { children: ReactNode }) {
 
   const isActive = (href: string) => (href === "/" ? location === "/" : location.startsWith(href));
 
+  const skipToMain = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    setMenuOpen(false);
+    const target = mainRef.current;
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  };
+
   return (
     <div className="site-shell">
+      <a className="skip-link" href="#main-content" onClick={skipToMain}>本文へ移動</a>
       <header className={`site-header ${scrolled ? "site-header--scrolled" : ""}`}>
         <div className="header-inner">
           <Link href="/" className="brand" aria-label="植松康希 ホームへ">
@@ -420,7 +439,7 @@ function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
-      <main>{children}</main>
+      <main id="main-content" ref={mainRef} tabIndex={-1}>{children}</main>
       <footer className="site-footer">
         <div className="footer-inner">
           <div className="footer-brand"><strong>植松康希</strong><span>Koki Uematsu</span></div>
@@ -428,10 +447,12 @@ function AppShell({ children }: { children: ReactNode }) {
             {navItems.slice(1).map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}
             <Link href="/privacy">Privacy Policy</Link>
             <button className="footer-cookie-settings" type="button" onClick={() => window.dispatchEvent(new Event(COOKIE_SETTINGS_EVENT))}>Cookie設定</button>
+            <button className="footer-accessibility-toggle" type="button" aria-pressed={readableMode} aria-label={readableMode ? "読みやすい文字表示を解除" : "読みやすい文字表示に切り替え"} onClick={() => setReadableMode((enabled) => !enabled)}>{readableMode ? "標準表示" : "読みやすく表示"}</button>
           </nav>
           <p className="footer-note">© {new Date().getFullYear()} Koki Uematsu</p>
         </div>
       </footer>
+      <p className="sr-only" aria-live="polite">{readableMode ? "読みやすい文字表示を有効にしました。" : "標準の文字表示です。"}</p>
       <BackToTop />
       <CookieConsent />
     </div>
