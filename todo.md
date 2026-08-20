@@ -138,3 +138,27 @@
 - [x] 右側の余白の原因を特定し、本文・ヒーローの幅を調整する。
 - [x] デスクトップ・スマートフォンで表示バランスを確認する。
 - [x] GitHub Pagesへ調整版を反映する。
+
+## reCAPTCHAメール保護タスク
+
+- [ ] reCAPTCHAの種類とGitHub Pages向けの安全な検証方式を確認する。
+- [ ] 認証前はメールアドレスを非表示にし、認証後に表示・コピーできるContact導線を実装する。
+- [ ] シークレットキーを公開せずに認証成功・失敗時の動作を確認する。
+- [ ] GitHub Pagesへ反映し、外部の検証処理に必要な設定を記録する。
+
+## Cloudflare Worker認証APIタスク
+
+- [ ] Cloudflareのログイン状態とWorker作成権限を確認する。
+- [ ] reCAPTCHA検証と一時的なメール公開を行うWorkerを作成する。
+- [ ] シークレットキーをCloudflareの暗号化された環境変数として設定する。
+- [ ] GitHub PagesのContact導線とWorkerを接続して検証する。
+
+## Cloudflare Worker JavaScript互換修正タスク
+
+- [ ] TypeScript記法を含まないブラウザエディタ向けのWorkerコードを用意する。
+- [ ] Cloudflareで構文エラーなく保存・デプロイできることを確認する。
+
+## Cloudflare Worker再デプロイタスク
+
+- [ ] シークレット設定を反映する再デプロイ用のJavaScript更新版を用意する。
+- [ ] Cloudflareで更新版をデプロイし、設定値がWorkerで利用できることを確認する。

@@ -17,8 +17,10 @@ import {
   CircleUserRound,
   Code2,
   Clock3,
+  Copy,
   Instagram,
   Link2,
+  LoaderCircle,
   Mail,
   Menu,
   MessageCircle,
@@ -42,6 +44,7 @@ const MICROCMS_NEWS_ENDPOINT = `https://${MICROCMS_DOMAIN}.microcms.io/api/v1/ne
 const COOKIE_CONSENT_NAME = "koki_cookie_consent";
 const COOKIE_SETTINGS_EVENT = "koki:open-cookie-settings";
 const GOOGLE_ANALYTICS_MEASUREMENT_ID = "G-S6GMRTWF52";
+const EMAIL_GATE_ENDPOINT = "https://uematsu-email-gate.takashiuematsu165.workers.dev";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -637,14 +640,149 @@ function ContactMethod({ icon, name, detail, timing, action, tone, href }: Conta
   return href ? <a className="contact-card" data-reveal data-analytics-contact-method={name} href={href} target="_blank" rel="noreferrer">{body}</a> : <div className="contact-card contact-card--inactive" data-reveal aria-label={`${name}: ${action}`}>{body}</div>;
 }
 
+type RecaptchaApi = {
+  render: (container: HTMLElement, options: { sitekey: string; theme: "light"; callback: (token: string) => void; "expired-callback": () => void; "error-callback": () => void }) => number;
+  reset: (widgetId?: number) => void;
+};
+
+type EmailGateStatus = "idle" | "loading" | "challenge" | "verifying" | "revealed" | "error";
+
+function getRecaptcha() {
+  return (window as Window & { grecaptcha?: RecaptchaApi }).grecaptcha;
+}
+
+function loadRecaptchaScript() {
+  const current = getRecaptcha();
+  if (current) return Promise.resolve(current);
+  const existing = document.querySelector<HTMLScriptElement>("script[data-email-gate-recaptcha='true']");
+  return new Promise<RecaptchaApi>((resolve, reject) => {
+    const complete = () => {
+      const api = getRecaptcha();
+      if (api) resolve(api);
+      else reject(new Error("reCAPTCHAの読み込みに失敗しました。"));
+    };
+    if (existing) {
+      existing.addEventListener("load", complete, { once: true });
+      existing.addEventListener("error", () => reject(new Error("reCAPTCHAの読み込みに失敗しました。")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://www.google.com/recaptcha/api.js?render=explicit&hl=ja";
+    script.async = true;
+    script.defer = true;
+    script.dataset.emailGateRecaptcha = "true";
+    script.addEventListener("load", complete, { once: true });
+    script.addEventListener("error", () => reject(new Error("reCAPTCHAの読み込みに失敗しました。")), { once: true });
+    document.head.appendChild(script);
+  });
+}
+
+function EmailAddressGate() {
+  const [status, setStatus] = useState<EmailGateStatus>("idle");
+  const [siteKey, setSiteKey] = useState("");
+  const [email, setEmail] = useState("");
+  const [notice, setNotice] = useState("");
+  const [challengeNonce, setChallengeNonce] = useState(0);
+  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
+  const captchaWidgetRef = useRef<number | null>(null);
+
+  const verifyToken = async (token: string) => {
+    setStatus("verifying");
+    setNotice("");
+    try {
+      const response = await fetch(`${EMAIL_GATE_ENDPOINT}/api/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const payload = await response.json() as { grant?: string; error?: string };
+      if (!response.ok || !payload.grant) throw new Error(payload.error || "verification_failed");
+      const emailResponse = await fetch(`${EMAIL_GATE_ENDPOINT}/api/email`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${payload.grant}` },
+      });
+      const emailPayload = await emailResponse.json() as { email?: string; error?: string };
+      if (!emailResponse.ok || !emailPayload.email) throw new Error(emailPayload.error || "email_unavailable");
+      setEmail(emailPayload.email);
+      setStatus("revealed");
+      trackAnalyticsEvent("email_recaptcha_verified", { page_path: getAnalyticsPagePath() });
+    } catch {
+      setStatus("error");
+      setNotice("認証を確認できませんでした。もう一度お試しください。");
+      captchaWidgetRef.current !== null && getRecaptcha()?.reset(captchaWidgetRef.current);
+      trackAnalyticsEvent("email_recaptcha_failed", { page_path: getAnalyticsPagePath() });
+    }
+  };
+
+  useEffect(() => {
+    if (!siteKey || !captchaContainerRef.current || captchaWidgetRef.current !== null) return;
+    let active = true;
+    captchaContainerRef.current.replaceChildren();
+    loadRecaptchaScript()
+      .then((recaptcha) => {
+        if (!active || !captchaContainerRef.current) return;
+        captchaWidgetRef.current = recaptcha.render(captchaContainerRef.current, {
+          sitekey: siteKey,
+          theme: "light",
+          callback: (token) => { void verifyToken(token); },
+          "expired-callback": () => setNotice("認証の有効期限が切れました。もう一度認証してください。"),
+          "error-callback": () => setNotice("reCAPTCHAの通信に失敗しました。接続を確認して再度お試しください。"),
+        });
+      })
+      .catch(() => {
+        setStatus("error");
+        setNotice("reCAPTCHAを読み込めませんでした。しばらくしてからもう一度お試しください。");
+      });
+    return () => { active = false; };
+  }, [siteKey, challengeNonce]);
+
+  const startChallenge = async () => {
+    setStatus("loading");
+    setNotice("");
+    setEmail("");
+    captchaWidgetRef.current = null;
+    try {
+      const response = await fetch(`${EMAIL_GATE_ENDPOINT}/api/config`);
+      const payload = await response.json() as { siteKey?: string };
+      if (!response.ok || !payload.siteKey) throw new Error("config_unavailable");
+      setSiteKey(payload.siteKey);
+      setStatus("challenge");
+      setChallengeNonce((value) => value + 1);
+      trackAnalyticsEvent("email_recaptcha_started", { page_path: getAnalyticsPagePath() });
+    } catch {
+      setStatus("error");
+      setNotice("認証を開始できませんでした。しばらくしてからもう一度お試しください。");
+    }
+  };
+
+  const copyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setNotice("メールアドレスをコピーしました。");
+      trackAnalyticsEvent("email_address_copied", { page_path: getAnalyticsPagePath() });
+    } catch {
+      setNotice("コピーできませんでした。表示されたメールアドレスを選択してコピーしてください。");
+    }
+  };
+
+  return (
+    <article className="contact-card contact-card--email" data-reveal>
+      <div className="contact-card__top"><span className="contact-icon contact-icon--primary"><Mail size={22} /></span><span className="contact-status"><ShieldCheck size={14} aria-hidden="true" />認証後に表示</span></div>
+      <div><h2>メール</h2><p>内容を整理して送る場合におすすめです。メールアドレスは認証後に表示されます。</p></div>
+      {status === "revealed" ? <div className="email-gate__revealed"><a className="email-gate__address" href={`mailto:${email}`} data-analytics-contact-method="メール">{email}</a><button className="email-gate__button email-gate__button--copy" type="button" onClick={() => void copyEmail()}><Copy size={16} aria-hidden="true" />メールアドレスをコピー</button></div> : <div className="email-gate__challenge"><button className="email-gate__button" type="button" onClick={() => void startChallenge()} disabled={status === "loading" || status === "verifying"}>{status === "loading" || status === "verifying" ? <><LoaderCircle className="email-gate__spinner" size={16} aria-hidden="true" />認証を準備中</> : "メールアドレスをコピー"}</button>{(status === "challenge" || status === "verifying") && <div className="email-gate__captcha"><p>{status === "verifying" ? "認証を確認しています。" : "reCAPTCHA認証を完了してください。"}</p><div ref={captchaContainerRef} /></div>}{status === "error" && <button className="email-gate__retry" type="button" onClick={() => void startChallenge()}>認証をやり直す</button>}</div>}
+      {notice && <p className={`email-gate__notice ${status === "error" ? "is-error" : ""}`} aria-live="polite">{notice}</p>}
+    </article>
+  );
+}
+
 function ContactPage() {
   return (
     <AppShell>
       <PageHero eyebrow="Contact" title="お問い合わせ" motif={CONTACT_MOTIF} lead="DMまたはメールでご連絡いただけます。急ぎの場合は、返信が比較的早いSNSのDMをご利用ください。" />
       <section className="content-section contact-section">
-        <div className="contact-intro" data-reveal><ShieldCheck size={20} aria-hidden="true" /><p>連絡先の実URL・メールアドレスは、公開前に設定してください。設定後は、このまま各カードが連絡導線として機能します。</p></div>
+        <div className="contact-intro" data-reveal><ShieldCheck size={20} aria-hidden="true" /><p>メールアドレスはreCAPTCHA認証後に表示されます。SNSの実URLは設定後、このまま各カードが連絡導線として機能します。</p></div>
         <div className="contact-grid">
-          <ContactMethod icon={<Mail size={22} />} name="メール" detail="内容を整理して送る場合におすすめです。" timing="通常返信" action="メールアドレスを設定してください" tone="primary" />
+          <EmailAddressGate />
           <ContactMethod icon={<Instagram size={22} />} name="Instagram DM" detail="比較的早い返信を希望する場合におすすめです。" timing="比較的早め" action="Instagramリンクを設定してください" tone="secondary" />
           <ContactMethod icon={<MessageCircle size={22} />} name="X DM" detail="短い相談や確認の連絡にご利用ください。" timing="比較的早め" action="Xリンクを設定してください" tone="primary" />
           <ContactMethod icon={<Send size={22} />} name="LINE公式アカウント" detail="連絡用の公式アカウントです。" timing="通常返信" action="LINEリンクを設定してください" tone="secondary" />
