@@ -70,3 +70,8 @@
 - [x] GitHub Pages用のビルドと公開ワークフローを追加する。
 - [x] `uematsu-homepage` リポジトリへコードを反映する。
 - [x] GitHub Pagesの公開URLを確認する。
+
+## GitHub Pages運用方針
+
+- [x] 今後の更新先をGitHubリポジトリとGitHub Pagesにする方針を記録する。
+- [x] 更新時のビルド・gh-pages反映手順を記録する。
