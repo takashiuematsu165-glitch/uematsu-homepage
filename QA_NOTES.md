@@ -81,3 +81,5 @@ GitHub Pagesへ圧縮版を反映後、公開URLからHome、Profile、News、SN
 WordPress.com連携の設定を確認したところ、WordPressコネクターは無効（`enabled: false`）であり、画像保存やサイト公開には使用されない状態であることを確認した。
 
 GitHub Pagesの各WebPファイル（ブランドマーク、ホーム、SNS、Contactの4画像）に対してHTTP応答を確認し、すべて `200` と `content-type: image/webp` で配信されていることを確認した。
+
+ホームヒーロー右側のプロフィール用カードを撤去し、本文パネルと淡い背景モチーフのみが残る構成へ調整した。デスクトップとスマートフォンで可読性・余白・既存のガラス調表現が維持されることを確認し、GitHub Pagesの公開URLでも右側カードが表示されないことを確認した。
