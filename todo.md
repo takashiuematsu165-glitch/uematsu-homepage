@@ -87,3 +87,23 @@
 - [x] Googleタグ初期化方式を互換性のある実装へ修正する。
 - [x] 公開サイトからpage_viewとContactクリックイベントがGoogleタグのデータレイヤーへ送信されることを確認する。GitHub Pagesのハッシュ形式に対応するイベント判定を修正済み。
 - [x] 公開後のGoogle公式Tag Assistantで測定IDとページビュー受信を確認する。
+
+## WordPress画像保存タスク
+
+- [ ] WordPressのログイン状態とメディアライブラリへのアップロード権限を確認する。
+- [ ] サイトで使用する画像をWordPressメディアライブラリへアップロードする。
+- [ ] WordPress画像URLに参照先を更新してGitHub Pagesへ反映する。
+
+## WordPress.com画像ストレージ移行タスク
+
+- [ ] WordPress.com連携を有効化し、保存先サイトを確認する。
+- [ ] サイトの画像をWordPress.comメディアライブラリへアップロードする。
+- [ ] GitHub PagesからWordPress.comの画像URLを参照するよう更新する。
+- [ ] GitHub Pages上で画像表示と各ページを確認する。
+
+## GitHub画像圧縮タスク
+
+- [x] GitHubで管理する画像のサイズと品質を確認する。
+- [x] 表示品質を保ったまま画像を圧縮する。
+- [ ] GitHub Pagesの画像参照と公開表示を確認する。
+- [ ] 圧縮版をGitHubリポジトリへ反映する。

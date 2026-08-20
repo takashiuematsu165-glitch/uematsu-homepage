@@ -32,10 +32,10 @@ import {
 
 const STATIC_ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
 const PROFILE_IMAGE = `${STATIC_ASSET_BASE}profile-thumb.png`;
-const HERO_ORBS = `${STATIC_ASSET_BASE}hero-tech-orbs.png`;
-const CONTACT_MOTIF = `${STATIC_ASSET_BASE}contact-orbital-motif.png`;
-const SOCIAL_MOTIF = `${STATIC_ASSET_BASE}social-constellation-motif.png`;
-const BRAND_MARK = `${STATIC_ASSET_BASE}brand-symbol.png`;
+const HERO_ORBS = `${STATIC_ASSET_BASE}hero-tech-orbs.webp`;
+const CONTACT_MOTIF = `${STATIC_ASSET_BASE}contact-orbital-motif.webp`;
+const SOCIAL_MOTIF = `${STATIC_ASSET_BASE}social-constellation-motif.webp`;
+const BRAND_MARK = `${STATIC_ASSET_BASE}brand-symbol.webp`;
 const MICROCMS_DOMAIN = "1jzsnsr5i6";
 const MICROCMS_API_KEY = "MBWNeoQ3aihAV1yIErRAkHv3l3wnRETvU1Qj";
 const MICROCMS_NEWS_ENDPOINT = `https://${MICROCMS_DOMAIN}.microcms.io/api/v1/news`;
