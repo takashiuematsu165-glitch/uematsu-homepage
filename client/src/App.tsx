@@ -494,10 +494,6 @@ function HomePage() {
             <p className="hero-lead">Koki Uematsu。勉強に苦しみながらパソコンを触る学生です。</p>
             <Link className="text-link" href="/profile">プロフィールを見る <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
-          <Link className="profile-thumbnail" href="/profile" aria-label="植松康希のプロフィールを見る" data-reveal style={{ transitionDelay: "120ms" }}>
-            <img src={PROFILE_IMAGE} alt="植松康希のプロフィール画像" />
-            <span>Profile <ArrowUpRight size={17} aria-hidden="true" /></span>
-          </Link>
         </div>
       </section>
 
