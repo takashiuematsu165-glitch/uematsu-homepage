@@ -1,6 +1,6 @@
 # Cloudflare Worker: `uematsu-email-gate`
 
-このWorkerは、GitHub PagesのContactページから送られるreCAPTCHA応答をサーバー側で検証し、成功した場合だけ短時間有効なメール公開トークンを発行する。
+このWorkerは、GitHub PagesのContactページから送られるreCAPTCHA Enterprise応答をサーバー側で検証し、成功した場合だけ短時間有効なメール公開トークンを発行する。ContactページではEnterprise用の `enterprise.js` と `grecaptcha.enterprise` を使い、WorkerはCloudflareのシークレットに保存したレガシーシークレットキーで `siteverify` を実行する。
 
 ## 必須シークレット
 

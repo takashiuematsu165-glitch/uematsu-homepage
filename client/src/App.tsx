@@ -648,7 +648,7 @@ type RecaptchaApi = {
 type EmailGateStatus = "idle" | "loading" | "challenge" | "verifying" | "revealed" | "error";
 
 function getRecaptcha() {
-  return (window as Window & { grecaptcha?: RecaptchaApi }).grecaptcha;
+  return (window as Window & { grecaptcha?: { enterprise?: RecaptchaApi } }).grecaptcha?.enterprise;
 }
 
 function loadRecaptchaScript() {
@@ -679,7 +679,7 @@ function loadRecaptchaScript() {
     const polling = window.setInterval(check, 100);
     if (!script) {
       script = document.createElement("script");
-      script.src = "https://www.google.com/recaptcha/api.js?render=explicit&hl=ja";
+      script.src = "https://www.google.com/recaptcha/enterprise.js?render=explicit&hl=ja";
       script.async = true;
       script.defer = true;
       script.dataset.emailGateRecaptcha = "true";
@@ -854,7 +854,7 @@ function PrivacyPage() {
           <section><h2>1. 取得する情報</h2><p>お問い合わせやSNSのダイレクトメッセージを通じて、氏名、メールアドレス、送信内容などの情報をご本人から提供いただく場合があります。また、サイトの利用状況を把握するため、閲覧したページ、利用日時、端末やブラウザに関する情報など、個人を直接特定しないアクセス情報を取得する場合があります。</p></section>
           <section><h2>2. 利用目的</h2><p>取得した情報は、お問い合わせへの対応、必要な連絡、本サイトの表示・安全性・使いやすさの改善、および不正利用の防止のために使用します。これらの目的に必要な範囲を超えて利用することはありません。</p></section>
           <section><h2>3. Google アナリティクスとCookie</h2><p>本サイトでは、利用状況の把握と改善のためにGoogle アナリティクスを利用します。初回表示時にCookieの利用について選択いただき、「同意する」を選んだ場合に限り、測定ID G-S6GMRTWF52によるGoogle アナリティクスを読み込みます。拒否した場合および選択前は、Google アナリティクスを読み込みません。選択内容はブラウザのCookieに保存され、フッターの「Cookie設定」からいつでも変更できます。Cookieはブラウザの設定により無効化できますが、一部の機能や表示に影響する場合があります。</p></section>
-          <section><h2>4. 外部サービスの利用</h2><p>本サイトでは、お知らせの表示にmicroCMSを利用しています。また、SNSページから外部のSNSやサービスへ移動できるリンクを掲載する場合があります。外部サービス上での情報の取り扱いについては、それぞれのサービスが定めるプライバシーポリシーをご確認ください。</p></section>
+          <section><h2>4. 外部サービスの利用</h2><p>本サイトでは、お知らせの表示にmicroCMSを利用しています。また、メールアドレスの表示・コピーを保護するため、Google reCAPTCHAおよびCloudflare Workersを利用しています。「メールアドレスをコピー」を選択した場合、reCAPTCHAの認証応答をCloudflare Workers経由で検証し、認証が成功した場合だけメールアドレスを表示します。SNSページから外部のSNSやサービスへ移動できるリンクを掲載する場合もあります。外部サービス上での情報の取り扱いについては、それぞれのサービスが定めるプライバシーポリシーをご確認ください。</p></section>
           <section><h2>5. 第三者提供</h2><p>法令に基づく場合、人の生命・身体・財産の保護に必要な場合、またはご本人の同意をいただいた場合を除き、取得した個人情報を第三者へ提供しません。</p></section>
           <section><h2>6. 安全管理</h2><p>個人情報への不正なアクセス、紛失、改ざん、漏えいなどを防ぐため、情報の性質に応じた合理的な安全管理措置を講じます。</p></section>
           <section><h2>7. 開示・訂正・削除等のご相談</h2><p>ご自身の情報について、開示、訂正、削除、利用停止などをご希望の場合は、本人確認を行ったうえで、合理的な範囲で対応します。</p></section>
