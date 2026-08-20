@@ -641,17 +641,17 @@ function ContactMethod({ icon, name, detail, timing, action, tone, href }: Conta
 }
 
 type RecaptchaApi = {
-  render: (container: HTMLElement, options: { sitekey: string; theme: "light"; callback: (token: string) => void; "expired-callback": () => void; "error-callback": () => void }) => number;
-  reset: (widgetId?: number) => void;
+  ready: (callback: () => void) => void;
+  execute: (siteKey: string, options: { action: string }) => Promise<string>;
 };
 
-type EmailGateStatus = "idle" | "loading" | "challenge" | "verifying" | "revealed" | "error";
+type EmailGateStatus = "idle" | "loading" | "verifying" | "revealed" | "error";
 
 function getRecaptcha() {
   return (window as Window & { grecaptcha?: { enterprise?: RecaptchaApi } }).grecaptcha?.enterprise;
 }
 
-function loadRecaptchaScript() {
+function loadRecaptchaScript(siteKey: string) {
   const current = getRecaptcha();
   if (current) return Promise.resolve(current);
   return new Promise<RecaptchaApi>((resolve, reject) => {
@@ -679,7 +679,7 @@ function loadRecaptchaScript() {
     const polling = window.setInterval(check, 100);
     if (!script) {
       script = document.createElement("script");
-      script.src = "https://www.google.com/recaptcha/enterprise.js?render=explicit&hl=ja";
+      script.src = `https://www.google.com/recaptcha/enterprise.js?render=${encodeURIComponent(siteKey)}&hl=ja`;
       script.async = true;
       script.defer = true;
       script.dataset.emailGateRecaptcha = "true";
@@ -692,12 +692,8 @@ function loadRecaptchaScript() {
 
 function EmailAddressGate() {
   const [status, setStatus] = useState<EmailGateStatus>("idle");
-  const [siteKey, setSiteKey] = useState("");
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState("");
-  const [challengeNonce, setChallengeNonce] = useState(0);
-  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
-  const captchaWidgetRef = useRef<number | null>(null);
 
   const verifyToken = async (token: string) => {
     setStatus("verifying");
@@ -722,49 +718,30 @@ function EmailAddressGate() {
     } catch {
       setStatus("error");
       setNotice("認証を確認できませんでした。もう一度お試しください。");
-      captchaWidgetRef.current !== null && getRecaptcha()?.reset(captchaWidgetRef.current);
       trackAnalyticsEvent("email_recaptcha_failed", { page_path: getAnalyticsPagePath() });
     }
   };
-
-  useEffect(() => {
-    if (!siteKey || !captchaContainerRef.current || captchaWidgetRef.current !== null) return;
-    let active = true;
-    captchaContainerRef.current.replaceChildren();
-    loadRecaptchaScript()
-      .then((recaptcha) => {
-        if (!active || !captchaContainerRef.current) return;
-        captchaWidgetRef.current = recaptcha.render(captchaContainerRef.current, {
-          sitekey: siteKey,
-          theme: "light",
-          callback: (token) => { void verifyToken(token); },
-          "expired-callback": () => setNotice("認証の有効期限が切れました。もう一度認証してください。"),
-          "error-callback": () => setNotice("認証画面が表示されない場合は、ブラウザの追跡防止・広告ブロック設定を一時的に確認して、もう一度お試しください。"),
-        });
-      })
-      .catch(() => {
-        setStatus("error");
-        setNotice("reCAPTCHAを読み込めませんでした。しばらくしてからもう一度お試しください。");
-      });
-    return () => { active = false; };
-  }, [siteKey, challengeNonce]);
 
   const startChallenge = async () => {
     setStatus("loading");
     setNotice("");
     setEmail("");
-    captchaWidgetRef.current = null;
     try {
       const response = await fetch(`${EMAIL_GATE_ENDPOINT}/api/config`);
       const payload = await response.json() as { siteKey?: string };
       if (!response.ok || !payload.siteKey) throw new Error("config_unavailable");
-      setSiteKey(payload.siteKey);
-      setStatus("challenge");
-      setChallengeNonce((value) => value + 1);
       trackAnalyticsEvent("email_recaptcha_started", { page_path: getAnalyticsPagePath() });
+      const recaptcha = await loadRecaptchaScript(payload.siteKey);
+      const token = await new Promise<string>((resolve, reject) => {
+        recaptcha.ready(() => {
+          void recaptcha.execute(payload.siteKey!, { action: "email_reveal" }).then(resolve).catch(reject);
+        });
+      });
+      await verifyToken(token);
     } catch {
       setStatus("error");
-      setNotice("認証を開始できませんでした。しばらくしてからもう一度お試しください。");
+      setNotice("認証を開始できませんでした。ブラウザの追跡防止・広告ブロック設定を確認して、もう一度お試しください。");
+      trackAnalyticsEvent("email_recaptcha_failed", { page_path: getAnalyticsPagePath() });
     }
   };
 
@@ -782,7 +759,7 @@ function EmailAddressGate() {
     <article className="contact-card contact-card--email" data-reveal>
       <div className="contact-card__top"><span className="contact-icon contact-icon--primary"><Mail size={22} /></span><span className="contact-status"><ShieldCheck size={14} aria-hidden="true" />認証後に表示</span></div>
       <div><h2>メール</h2><p>内容を整理して送る場合におすすめです。メールアドレスは認証後に表示されます。</p></div>
-      {status === "revealed" ? <div className="email-gate__revealed"><a className="email-gate__address" href={`mailto:${email}`} data-analytics-contact-method="メール">{email}</a><button className="email-gate__button email-gate__button--copy" type="button" onClick={() => void copyEmail()}><Copy size={16} aria-hidden="true" />メールアドレスをコピー</button></div> : <div className="email-gate__challenge"><button className="email-gate__button" type="button" onClick={() => void startChallenge()} disabled={status === "loading" || status === "verifying"}>{status === "loading" || status === "verifying" ? <><LoaderCircle className="email-gate__spinner" size={16} aria-hidden="true" />認証を準備中</> : "メールアドレスをコピー"}</button>{(status === "challenge" || status === "verifying") && <div className="email-gate__captcha"><p>{status === "verifying" ? "認証を確認しています。" : "reCAPTCHA認証を完了してください。"}</p><div ref={captchaContainerRef} /></div>}{status === "error" && <button className="email-gate__retry" type="button" onClick={() => void startChallenge()}>認証をやり直す</button>}</div>}
+      {status === "revealed" ? <div className="email-gate__revealed"><a className="email-gate__address" href={`mailto:${email}`} data-analytics-contact-method="メール">{email}</a><button className="email-gate__button email-gate__button--copy" type="button" onClick={() => void copyEmail()}><Copy size={16} aria-hidden="true" />メールアドレスをコピー</button></div> : <div className="email-gate__challenge"><button className="email-gate__button" type="button" onClick={() => void startChallenge()} disabled={status === "loading" || status === "verifying"}>{status === "loading" || status === "verifying" ? <><LoaderCircle className="email-gate__spinner" size={16} aria-hidden="true" />認証を確認中</> : "メールアドレスをコピー"}</button>{status === "error" && <button className="email-gate__retry" type="button" onClick={() => void startChallenge()}>認証をやり直す</button>}</div>}
       {notice && <p className={`email-gate__notice ${status === "error" ? "is-error" : ""}`} aria-live="polite">{notice}</p>}
     </article>
   );

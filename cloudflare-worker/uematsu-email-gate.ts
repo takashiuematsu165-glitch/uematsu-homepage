@@ -1,18 +1,20 @@
 /**
- * Security design: this Worker keeps the reCAPTCHA secret and contact email
- * outside the GitHub Pages bundle. Only a verified, short-lived grant may read
- * the email from POST /api/email.
+ * TypeScript reference for the Cloudflare Dashboard JavaScript implementation.
+ * Keep all Env values as Cloudflare Secrets, never in the GitHub Pages bundle.
  */
 interface Env {
   RECAPTCHA_SITE_KEY: string;
   RECAPTCHA_SECRET: string;
   CONTACT_EMAIL: string;
+  GOOGLE_CLOUD_PROJECT_ID: string;
+  GOOGLE_CLOUD_API_KEY: string;
 }
 
 const ALLOWED_ORIGIN = "https://takashiuematsu165-glitch.github.io";
 const ALLOWED_HOSTNAME = "takashiuematsu165-glitch.github.io";
+const RECAPTCHA_ACTION = "email_reveal";
+const MINIMUM_RISK_SCORE = 0.5;
 const GRANT_LIFETIME_SECONDS = 300;
-
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -25,8 +27,7 @@ function base64UrlEncode(bytes: Uint8Array) {
 function base64UrlDecode(value: string) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
-  const binary = atob(padded);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
 async function signingKey(secret: string) {
@@ -49,9 +50,7 @@ async function hasValidGrant(request: Request, env: Env) {
     if (!validSignature) return false;
     const parsed = JSON.parse(decoder.decode(base64UrlDecode(payload))) as { exp?: number };
     return typeof parsed.exp === "number" && parsed.exp > Math.floor(Date.now() / 1000);
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 function corsHeaders(request: Request) {
@@ -65,47 +64,33 @@ function json(request: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...corsHeaders(request) } });
 }
 
-async function verifyRecaptcha(token: string, env: Env) {
-  const form = new URLSearchParams({ secret: env.RECAPTCHA_SECRET, response: token });
-  const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+async function verifyRecaptchaEnterpriseV3(token: string, request: Request, env: Env) {
+  const endpoint = `https://recaptchaenterprise.googleapis.com/v1/projects/${encodeURIComponent(env.GOOGLE_CLOUD_PROJECT_ID)}/assessments?key=${encodeURIComponent(env.GOOGLE_CLOUD_API_KEY)}`;
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event: { token, siteKey: env.RECAPTCHA_SITE_KEY, expectedAction: RECAPTCHA_ACTION, userAgent: request.headers.get("User-Agent") || "", userIpAddress: request.headers.get("CF-Connecting-IP") || "" } }),
   });
   if (!response.ok) return false;
-  const result = await response.json() as { success?: boolean; hostname?: string };
-  return result.success === true && result.hostname === ALLOWED_HOSTNAME;
+  const assessment = await response.json() as { tokenProperties?: { valid?: boolean; hostname?: string; action?: string }; riskAnalysis?: { score?: number } };
+  const properties = assessment.tokenProperties || {};
+  return properties.valid === true && properties.hostname === ALLOWED_HOSTNAME && properties.action === RECAPTCHA_ACTION && Number(assessment.riskAnalysis?.score || 0) >= MINIMUM_RISK_SCORE;
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
-
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
     if (origin && origin !== ALLOWED_ORIGIN) return json(request, { error: "origin_not_allowed" }, 403);
-
-    if (request.method === "GET" && url.pathname === "/api/config") {
-      return json(request, { siteKey: env.RECAPTCHA_SITE_KEY });
-    }
-
+    if (request.method === "GET" && url.pathname === "/api/config") return json(request, { siteKey: env.RECAPTCHA_SITE_KEY, action: RECAPTCHA_ACTION });
     if (request.method === "POST" && url.pathname === "/api/verify") {
       let token = "";
-      try {
-        token = String((await request.json() as { token?: string }).token || "");
-      } catch {
-        return json(request, { error: "invalid_request" }, 400);
-      }
+      try { token = String((await request.json() as { token?: string }).token || ""); } catch { return json(request, { error: "invalid_request" }, 400); }
       if (!token) return json(request, { error: "missing_token" }, 400);
-      const verified = await verifyRecaptcha(token, env);
-      return verified ? json(request, { grant: await issueGrant(env) }) : json(request, { error: "verification_failed" }, 403);
+      return await verifyRecaptchaEnterpriseV3(token, request, env) ? json(request, { grant: await issueGrant(env) }) : json(request, { error: "verification_failed" }, 403);
     }
-
-    if (request.method === "POST" && url.pathname === "/api/email") {
-      if (!await hasValidGrant(request, env)) return json(request, { error: "invalid_grant" }, 401);
-      return json(request, { email: env.CONTACT_EMAIL });
-    }
-
+    if (request.method === "POST" && url.pathname === "/api/email") return await hasValidGrant(request, env) ? json(request, { email: env.CONTACT_EMAIL }) : json(request, { error: "invalid_grant" }, 401);
     return json(request, { error: "not_found" }, 404);
   },
 };

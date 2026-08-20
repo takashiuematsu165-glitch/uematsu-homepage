@@ -1,11 +1,13 @@
 /**
  * Cloudflare Dashboard JavaScript editor version.
- * Keep all three values below as Cloudflare Secrets, never in this source file.
+ * Keep every value referenced through env as a Cloudflare Secret.
  */
 const ALLOWED_ORIGIN = "https://takashiuematsu165-glitch.github.io";
 const ALLOWED_HOSTNAME = "takashiuematsu165-glitch.github.io";
+const RECAPTCHA_ACTION = "email_reveal";
+const MINIMUM_RISK_SCORE = 0.5;
 const GRANT_LIFETIME_SECONDS = 300;
-const WORKER_RELEASE = "email-gate-2026-08-20-02";
+const WORKER_RELEASE = "email-gate-enterprise-v3-2026-08-20";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -18,8 +20,7 @@ function base64UrlEncode(bytes) {
 function base64UrlDecode(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
-  const binary = atob(padded);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
 async function signingKey(secret) {
@@ -58,39 +59,45 @@ function json(request, body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...corsHeaders(request) } });
 }
 
-async function verifyRecaptcha(token, env) {
-  const form = new URLSearchParams({ secret: env.RECAPTCHA_SECRET, response: token });
-  const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+async function verifyRecaptchaEnterpriseV3(token, request, env) {
+  const endpoint = `https://recaptchaenterprise.googleapis.com/v1/projects/${encodeURIComponent(env.GOOGLE_CLOUD_PROJECT_ID)}/assessments?key=${encodeURIComponent(env.GOOGLE_CLOUD_API_KEY)}`;
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event: {
+      token,
+      siteKey: env.RECAPTCHA_SITE_KEY,
+      expectedAction: RECAPTCHA_ACTION,
+      userAgent: request.headers.get("User-Agent") || "",
+      userIpAddress: request.headers.get("CF-Connecting-IP") || "",
+    } }),
   });
   if (!response.ok) return false;
-  const result = await response.json();
-  return result.success === true && result.hostname === ALLOWED_HOSTNAME;
+  const assessment = await response.json();
+  const properties = assessment.tokenProperties || {};
+  const score = Number(assessment.riskAnalysis?.score || 0);
+  return properties.valid === true
+    && properties.hostname === ALLOWED_HOSTNAME
+    && properties.action === RECAPTCHA_ACTION
+    && score >= MINIMUM_RISK_SCORE;
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
-
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
     if (origin && origin !== ALLOWED_ORIGIN) return json(request, { error: "origin_not_allowed" }, 403);
 
     if (request.method === "GET" && url.pathname === "/api/config") {
-      return json(request, { siteKey: env.RECAPTCHA_SITE_KEY, release: WORKER_RELEASE });
+      return json(request, { siteKey: env.RECAPTCHA_SITE_KEY, release: WORKER_RELEASE, action: RECAPTCHA_ACTION });
     }
 
     if (request.method === "POST" && url.pathname === "/api/verify") {
       let token = "";
-      try {
-        token = String((await request.json()).token || "");
-      } catch {
-        return json(request, { error: "invalid_request" }, 400);
-      }
+      try { token = String((await request.json()).token || ""); } catch { return json(request, { error: "invalid_request" }, 400); }
       if (!token) return json(request, { error: "missing_token" }, 400);
-      const verified = await verifyRecaptcha(token, env);
+      const verified = await verifyRecaptchaEnterpriseV3(token, request, env);
       return verified ? json(request, { grant: await issueGrant(env) }) : json(request, { error: "verification_failed" }, 403);
     }
 
@@ -98,7 +105,6 @@ export default {
       if (!await hasValidGrant(request, env)) return json(request, { error: "invalid_grant" }, 401);
       return json(request, { email: env.CONTACT_EMAIL });
     }
-
     return json(request, { error: "not_found" }, 404);
   },
 };

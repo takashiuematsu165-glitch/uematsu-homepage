@@ -179,3 +179,16 @@
 - [ ] Enterpriseキーに対応するクライアントスクリプトと検証APIを確認する。
 - [ ] ContactページとCloudflare WorkerをEnterprise認証方式へ切り替える。
 - [ ] Enterprise認証後にメール表示・コピーできることを確認する。
+
+## reCAPTCHA Enterprise認証失敗切り分けタスク
+
+- [ ] 認証完了後の画面メッセージとWorkerの検証応答を確認する。
+- [ ] Enterpriseキーに対応するGoogle Cloud評価APIまたはキー設定を確認する。
+- [ ] 認証成功後にメール表示・コピーできることを実ブラウザで確認する。
+
+## reCAPTCHA Enterprise v3対応タスク
+
+- [ ] v3アクショントークンを生成するContact導線へ切り替える。
+- [ ] Cloudflare WorkerからCreateAssessment APIを呼び出してトークンを評価する。
+- [ ] Google CloudのプロジェクトIDと制限済みAPIキーをCloudflareのシークレットに設定する。
+- [ ] 評価成功後にメール表示・コピーできることを確認する。
