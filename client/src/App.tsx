@@ -90,6 +90,12 @@ function revokeGoogleAnalyticsConsent() {
   });
 }
 
+function trackAnalyticsEvent(eventName: string, parameters: Record<string, string | number | boolean>) {
+  if (getCookie(COOKIE_CONSENT_NAME) !== "accepted") return;
+  if (!document.querySelector("script[data-consent-google-analytics='true']")) return;
+  getGoogleAnalyticsWindow().gtag?.("event", eventName, parameters);
+}
+
 type NewsItem = {
   id: string;
   title?: string;
@@ -297,6 +303,31 @@ function AppShell({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    const trackLinkClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest<HTMLAnchorElement>("a");
+      if (!link) return;
+      const socialNetwork = link.dataset.analyticsSocial;
+      const contactMethod = link.dataset.analyticsContactMethod;
+      if (socialNetwork) {
+        trackAnalyticsEvent("social_link_click", { social_network: socialNetwork, link_location: "sns_page" });
+        return;
+      }
+      if (contactMethod) {
+        trackAnalyticsEvent("contact_method_click", { contact_method: contactMethod, link_location: "contact_page" });
+        return;
+      }
+      if (link.getAttribute("href") === "/contact") {
+        const linkLocation = link.closest(".site-header") ? "header_navigation" : link.closest(".site-footer") ? "footer_navigation" : "content";
+        trackAnalyticsEvent("contact_page_click", { link_location: linkLocation });
+      }
+    };
+    document.addEventListener("click", trackLinkClick);
+    return () => document.removeEventListener("click", trackLinkClick);
+  }, []);
+
   const isActive = (href: string) => (href === "/" ? location === "/" : location.startsWith(href));
 
   return (
@@ -395,8 +426,8 @@ function CookieConsent() {
   const isSettings = choice !== null;
   return (
     <aside className="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookieの設定">
-      <div className="cookie-banner__copy"><p className="cookie-banner__eyebrow">Cookie Settings</p><h2>{isSettings ? "Cookieの設定を変更" : "Cookieの利用について"}</h2><p>本サイトでは、利用状況の把握と改善のためにGoogle アナリティクスのCookieを使用します。同意を選んだ場合のみ、Google アナリティクスを読み込みます。詳しくは<Link href="/privacy">プライバシーポリシー</Link>をご確認ください。</p></div>
-      <div className="cookie-banner__actions"><button className="cookie-button cookie-button--secondary" type="button" onClick={() => setConsent("rejected")}>拒否する</button><button className="cookie-button cookie-button--primary" type="button" onClick={() => setConsent("accepted")}>同意する</button></div>
+      <div className="cookie-banner__copy"><div className="cookie-banner__heading"><span className="cookie-banner__seal"><ShieldCheck size={19} aria-hidden="true" /></span><div><p className="cookie-banner__eyebrow">Privacy controls</p><h2>{isSettings ? "Cookieの設定を変更" : "Cookieの利用について"}</h2></div></div><p>本サイトでは、利用状況の把握と改善のためにGoogle アナリティクスのCookieを使用します。同意を選んだ場合のみ、Google アナリティクスを読み込みます。</p></div>
+      <div className="cookie-banner__actions"><Link className="cookie-policy-link" href="/privacy"><span>プライバシーポリシー</span><ArrowRight size={15} aria-hidden="true" /></Link><div className="cookie-banner__choices"><button className="cookie-button cookie-button--secondary" type="button" onClick={() => setConsent("rejected")}>拒否する</button><button className="cookie-button cookie-button--primary" type="button" onClick={() => setConsent("accepted")}>同意する</button></div></div>
     </aside>
   );
 }
@@ -547,7 +578,7 @@ type ContactMethodProps = {
 
 function ContactMethod({ icon, name, detail, timing, action, tone, href }: ContactMethodProps) {
   const body = <><div className="contact-card__top"><span className={`contact-icon contact-icon--${tone}`}>{icon}</span><span className="contact-status"><Clock3 size={14} aria-hidden="true" />{timing}</span></div><div><h2>{name}</h2><p>{detail}</p></div><span className="contact-action">{action}{href ? <ArrowUpRight size={17} aria-hidden="true" /> : <CircleAlert size={17} aria-hidden="true" />}</span></>;
-  return href ? <a className="contact-card" data-reveal href={href} target="_blank" rel="noreferrer">{body}</a> : <div className="contact-card contact-card--inactive" data-reveal aria-label={`${name}: ${action}`}>{body}</div>;
+  return href ? <a className="contact-card" data-reveal data-analytics-contact-method={name} href={href} target="_blank" rel="noreferrer">{body}</a> : <div className="contact-card contact-card--inactive" data-reveal aria-label={`${name}: ${action}`}>{body}</div>;
 }
 
 function ContactPage() {
@@ -572,7 +603,7 @@ function ContactPage() {
 type SocialLinkProps = { icon: ReactNode; service: string; handle: string; purpose: string; status: string; href?: string; delay?: string };
 function SocialLink({ icon, service, handle, purpose, status, href, delay }: SocialLinkProps) {
   const content = <><span className="social-icon">{icon}</span><span className="social-copy"><span className="social-copy__top"><strong>{service}</strong><span>{status}</span></span><span>{purpose}</span></span><span className="social-handle">{handle}</span>{href ? <ArrowUpRight className="social-arrow" size={20} aria-hidden="true" /> : <CircleAlert className="social-arrow social-arrow--muted" size={19} aria-hidden="true" />}</>;
-  return href ? <a className="social-row" href={href} target="_blank" rel="noreferrer" data-reveal style={{ transitionDelay: delay }}>{content}</a> : <div className="social-row social-row--inactive" data-reveal style={{ transitionDelay: delay }} aria-label={`${service}: ${status}`}>{content}</div>;
+  return href ? <a className="social-row" href={href} target="_blank" rel="noreferrer" data-reveal data-analytics-social={service} style={{ transitionDelay: delay }}>{content}</a> : <div className="social-row social-row--inactive" data-reveal style={{ transitionDelay: delay }} aria-label={`${service}: ${status}`}>{content}</div>;
 }
 
 function SocialPage() {
