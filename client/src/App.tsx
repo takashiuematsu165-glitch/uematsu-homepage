@@ -2,7 +2,7 @@
  * デザイン方針: 既存の淡いブルー背景、ガラス調パネル、ブルー／ピンクのアクセントを維持し、
  * 情報の視認性と穏やかなマイクロインタラクションのみを改善する。
  */
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import {
@@ -77,12 +77,13 @@ function loadAnalyticsAfterConsent() {
     analyticsWindow.dataLayer?.push(arguments);
   };
   analyticsWindow.gtag("js", new Date());
-  analyticsWindow.gtag("config", GOOGLE_ANALYTICS_MEASUREMENT_ID);
+  analyticsWindow.gtag("config", GOOGLE_ANALYTICS_MEASUREMENT_ID, { send_page_view: false });
   const script = document.createElement("script");
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_MEASUREMENT_ID)}`;
   script.dataset.consentGoogleAnalytics = "true";
   document.head.appendChild(script);
+  trackPageView();
 }
 
 function revokeGoogleAnalyticsConsent() {
@@ -94,9 +95,26 @@ function revokeGoogleAnalyticsConsent() {
 }
 
 function trackAnalyticsEvent(eventName: string, parameters: Record<string, string | number | boolean>) {
-  if (getCookie(COOKIE_CONSENT_NAME) !== "accepted") return;
-  if (!document.querySelector("script[data-consent-google-analytics='true']")) return;
+  if (getCookie(COOKIE_CONSENT_NAME) !== "accepted") return false;
+  if (!document.querySelector("script[data-consent-google-analytics='true']")) return false;
   getGoogleAnalyticsWindow().gtag?.("event", eventName, parameters);
+  return true;
+}
+
+function getAnalyticsPagePath() {
+  return window.location.hash.replace(/^#/, "") || "/";
+}
+
+function trackPageView() {
+  const analyticsWindow = getGoogleAnalyticsWindow() as ReturnType<typeof getGoogleAnalyticsWindow> & { __kokiLastTrackedPagePath?: string };
+  const pagePath = getAnalyticsPagePath();
+  if (analyticsWindow.__kokiLastTrackedPagePath === pagePath) return;
+  const wasTracked = trackAnalyticsEvent("page_view", {
+    page_path: pagePath,
+    page_location: window.location.href,
+    page_title: document.title,
+  });
+  if (wasTracked) analyticsWindow.__kokiLastTrackedPagePath = pagePath;
 }
 
 type NewsItem = {
@@ -291,6 +309,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const scrollMilestonesRef = useRef(new Set<number>());
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -307,6 +326,26 @@ function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    scrollMilestonesRef.current.clear();
+    trackPageView();
+
+    const trackScrollDepth = () => {
+      const scrollableHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (scrollableHeight <= 0) return;
+      const progress = Math.min(100, Math.round((window.scrollY / scrollableHeight) * 100));
+      [25, 50, 75, 90].forEach((milestone) => {
+        if (progress < milestone || scrollMilestonesRef.current.has(milestone)) return;
+        scrollMilestonesRef.current.add(milestone);
+        trackAnalyticsEvent("scroll_depth", { percent_scrolled: milestone, page_path: getAnalyticsPagePath() });
+      });
+    };
+
+    trackScrollDepth();
+    window.addEventListener("scroll", trackScrollDepth, { passive: true });
+    return () => window.removeEventListener("scroll", trackScrollDepth);
+  }, [location]);
+
+  useEffect(() => {
     const trackLinkClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -314,17 +353,34 @@ function AppShell({ children }: { children: ReactNode }) {
       if (!link) return;
       const socialNetwork = link.dataset.analyticsSocial;
       const contactMethod = link.dataset.analyticsContactMethod;
+      const ctaName = link.dataset.analyticsCta;
+      const newsId = link.dataset.analyticsNewsId;
+      const newsTitle = link.dataset.analyticsNewsTitle;
+      const href = link.getAttribute("href") || "";
+      const linkText = link.textContent?.replace(/\s+/g, " ").trim() || "未設定";
+      const navigationArea = link.closest(".site-header") ? "header" : link.closest(".site-footer") ? "footer" : "content";
       if (socialNetwork) {
         trackAnalyticsEvent("social_link_click", { social_network: socialNetwork, link_location: "sns_page" });
-        return;
       }
       if (contactMethod) {
         trackAnalyticsEvent("contact_method_click", { contact_method: contactMethod, link_location: "contact_page" });
-        return;
       }
-      if (["/contact", "#/contact"].includes(link.getAttribute("href") || "")) {
-        const linkLocation = link.closest(".site-header") ? "header_navigation" : link.closest(".site-footer") ? "footer_navigation" : "content";
+      if (ctaName) {
+        trackAnalyticsEvent("cta_click", { cta_name: ctaName, page_path: getAnalyticsPagePath() });
+      }
+      if (newsId) {
+        trackAnalyticsEvent("news_article_click", { article_id: newsId, article_title: newsTitle || "お知らせ", page_path: getAnalyticsPagePath() });
+      }
+      if (["/contact", "#/contact"].includes(href)) {
+        const linkLocation = navigationArea === "header" ? "header_navigation" : navigationArea === "footer" ? "footer_navigation" : "content";
         trackAnalyticsEvent("contact_page_click", { link_location: linkLocation });
+      }
+      if (navigationArea !== "content") {
+        trackAnalyticsEvent("site_navigation_click", { navigation_area: navigationArea, destination: href || "/", link_text: linkText });
+      }
+      const isExternalHttpLink = (link.protocol === "http:" || link.protocol === "https:") && link.origin !== window.location.origin;
+      if (isExternalHttpLink) {
+        trackAnalyticsEvent("outbound_link_click", { link_domain: link.hostname, link_text: linkText, page_path: getAnalyticsPagePath() });
       }
     };
     document.addEventListener("click", trackLinkClick);
@@ -395,6 +451,7 @@ function BackToTop() {
 
   const returnToTop = () => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    trackAnalyticsEvent("back_to_top_click", { page_path: getAnalyticsPagePath(), scroll_position: Math.round(window.scrollY) });
     window.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
   };
 
@@ -453,7 +510,7 @@ function PageHero({ eyebrow, title, lead, motif, pageClassName = "" }: { eyebrow
 function NewsCard({ item, delay }: { item: NewsItem; delay?: string }) {
   const category = categoryOf(item);
   return (
-    <Link className="news-card news-card--link" href={`/news/${encodeURIComponent(item.id)}`} data-reveal style={{ transitionDelay: delay }}>
+    <Link className="news-card news-card--link" href={`/news/${encodeURIComponent(item.id)}`} data-reveal data-analytics-news-id={item.id} data-analytics-news-title={item.title || "お知らせ"} style={{ transitionDelay: delay }}>
       <span>{formatNewsDate(item.publishedAt) || "News"}</span>
       {category?.name && <span className="news-category">{category.name}</span>}
       <h3>{item.title || "お知らせ"}</h3>
@@ -492,7 +549,7 @@ function HomePage() {
             <Eyebrow>Official Profile Site</Eyebrow>
             <h1 className="hero-title">植松康希</h1>
             <p className="hero-lead">Koki Uematsu。勉強に苦しみながらパソコンを触る学生です。</p>
-            <Link className="text-link" href="/profile">プロフィールを見る <ArrowRight size={17} aria-hidden="true" /></Link>
+            <Link className="text-link" href="/profile" data-analytics-cta="hero_profile">プロフィールを見る <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
         </div>
       </section>
