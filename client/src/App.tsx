@@ -654,26 +654,39 @@ function getRecaptcha() {
 function loadRecaptchaScript() {
   const current = getRecaptcha();
   if (current) return Promise.resolve(current);
-  const existing = document.querySelector<HTMLScriptElement>("script[data-email-gate-recaptcha='true']");
   return new Promise<RecaptchaApi>((resolve, reject) => {
-    const complete = () => {
-      const api = getRecaptcha();
-      if (api) resolve(api);
-      else reject(new Error("reCAPTCHAの読み込みに失敗しました。"));
+    let settled = false;
+    let attempts = 0;
+    let script = document.querySelector<HTMLScriptElement>("script[data-email-gate-recaptcha='true']");
+    const finish = (api: RecaptchaApi) => {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(polling);
+      resolve(api);
     };
-    if (existing) {
-      existing.addEventListener("load", complete, { once: true });
-      existing.addEventListener("error", () => reject(new Error("reCAPTCHAの読み込みに失敗しました。")), { once: true });
-      return;
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(polling);
+      script?.remove();
+      reject(new Error("reCAPTCHAの読み込みに失敗しました。"));
+    };
+    const check = () => {
+      const api = getRecaptcha();
+      if (api) finish(api);
+      else if (++attempts >= 80) fail();
+    };
+    const polling = window.setInterval(check, 100);
+    if (!script) {
+      script = document.createElement("script");
+      script.src = "https://www.google.com/recaptcha/api.js?render=explicit&hl=ja";
+      script.async = true;
+      script.defer = true;
+      script.dataset.emailGateRecaptcha = "true";
+      document.head.appendChild(script);
     }
-    const script = document.createElement("script");
-    script.src = "https://www.google.com/recaptcha/api.js?render=explicit&hl=ja";
-    script.async = true;
-    script.defer = true;
-    script.dataset.emailGateRecaptcha = "true";
-    script.addEventListener("load", complete, { once: true });
-    script.addEventListener("error", () => reject(new Error("reCAPTCHAの読み込みに失敗しました。")), { once: true });
-    document.head.appendChild(script);
+    script.addEventListener("error", fail, { once: true });
+    check();
   });
 }
 
