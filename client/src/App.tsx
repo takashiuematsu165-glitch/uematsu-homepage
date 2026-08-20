@@ -39,6 +39,7 @@ const MICROCMS_API_KEY = "MBWNeoQ3aihAV1yIErRAkHv3l3wnRETvU1Qj";
 const MICROCMS_NEWS_ENDPOINT = `https://${MICROCMS_DOMAIN}.microcms.io/api/v1/news`;
 const COOKIE_CONSENT_NAME = "koki_cookie_consent";
 const COOKIE_SETTINGS_EVENT = "koki:open-cookie-settings";
+const GOOGLE_ANALYTICS_MEASUREMENT_ID = "G-S6GMRTWF52";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -62,17 +63,31 @@ function saveCookieConsent(choice: CookieConsentChoice) {
   document.cookie = `${encodeURIComponent(COOKIE_CONSENT_NAME)}=${encodeURIComponent(choice)}; Path=/; Max-Age=${oneYearInSeconds}; SameSite=Lax${secureAttribute}`;
 }
 
+function getGoogleAnalyticsWindow() {
+  return window as Window & { dataLayer?: unknown[][]; gtag?: (...args: unknown[]) => void };
+}
+
 function loadAnalyticsAfterConsent() {
-  if (document.querySelector("script[data-consent-analytics='true']")) return;
-  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
-  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
-  if (!endpoint || !websiteId || endpoint.includes("%") || websiteId.includes("%")) return;
+  if (document.querySelector("script[data-consent-google-analytics='true']")) return;
+  const analyticsWindow = getGoogleAnalyticsWindow();
+  analyticsWindow.dataLayer ??= [];
+  analyticsWindow.gtag = (...args: unknown[]) => analyticsWindow.dataLayer?.push(args);
+  analyticsWindow.gtag("js", new Date());
+  analyticsWindow.gtag("consent", "default", { analytics_storage: "granted" });
+  analyticsWindow.gtag("config", GOOGLE_ANALYTICS_MEASUREMENT_ID);
   const script = document.createElement("script");
-  script.defer = true;
-  script.src = `${endpoint.replace(/\/$/, "")}/umami`;
-  script.dataset.websiteId = websiteId;
-  script.dataset.consentAnalytics = "true";
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_MEASUREMENT_ID)}`;
+  script.dataset.consentGoogleAnalytics = "true";
   document.head.appendChild(script);
+}
+
+function revokeGoogleAnalyticsConsent() {
+  const analyticsWindow = getGoogleAnalyticsWindow();
+  analyticsWindow.gtag?.("consent", "update", { analytics_storage: "denied" });
+  document.cookie.split(";").map((item) => item.trim().split("=")[0]).filter((name) => name.startsWith("_ga")).forEach((name) => {
+    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+  });
 }
 
 type NewsItem = {
@@ -361,6 +376,7 @@ function CookieConsent() {
 
   useEffect(() => {
     if (choice === "accepted") loadAnalyticsAfterConsent();
+    if (choice === "rejected") revokeGoogleAnalyticsConsent();
   }, [choice]);
 
   useEffect(() => {
@@ -379,7 +395,7 @@ function CookieConsent() {
   const isSettings = choice !== null;
   return (
     <aside className="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookieの設定">
-      <div className="cookie-banner__copy"><p className="cookie-banner__eyebrow">Cookie Settings</p><h2>{isSettings ? "Cookieの設定を変更" : "Cookieの利用について"}</h2><p>本サイトでは、利用状況の把握と改善のためにアクセス解析用Cookieを使用する場合があります。同意を選ぶと、解析スクリプトを読み込みます。詳しくは<Link href="/privacy">プライバシーポリシー</Link>をご確認ください。</p></div>
+      <div className="cookie-banner__copy"><p className="cookie-banner__eyebrow">Cookie Settings</p><h2>{isSettings ? "Cookieの設定を変更" : "Cookieの利用について"}</h2><p>本サイトでは、利用状況の把握と改善のためにGoogle アナリティクスのCookieを使用します。同意を選んだ場合のみ、Google アナリティクスを読み込みます。詳しくは<Link href="/privacy">プライバシーポリシー</Link>をご確認ください。</p></div>
       <div className="cookie-banner__actions"><button className="cookie-button cookie-button--secondary" type="button" onClick={() => setConsent("rejected")}>拒否する</button><button className="cookie-button cookie-button--primary" type="button" onClick={() => setConsent("accepted")}>同意する</button></div>
     </aside>
   );
@@ -599,7 +615,7 @@ function PrivacyPage() {
 
           <section><h2>1. 取得する情報</h2><p>お問い合わせやSNSのダイレクトメッセージを通じて、氏名、メールアドレス、送信内容などの情報をご本人から提供いただく場合があります。また、サイトの利用状況を把握するため、閲覧したページ、利用日時、端末やブラウザに関する情報など、個人を直接特定しないアクセス情報を取得する場合があります。</p></section>
           <section><h2>2. 利用目的</h2><p>取得した情報は、お問い合わせへの対応、必要な連絡、本サイトの表示・安全性・使いやすさの改善、および不正利用の防止のために使用します。これらの目的に必要な範囲を超えて利用することはありません。</p></section>
-          <section><h2>3. アクセス解析とCookie</h2><p>本サイトでは、利用状況の把握と改善のためにアクセス解析を利用する場合があります。初回表示時にCookieの利用について選択いただき、「同意する」を選んだ場合に限り解析スクリプトを読み込みます。選択内容はブラウザのCookieに保存され、フッターの「Cookie設定」からいつでも変更できます。Cookieはブラウザの設定により無効化できますが、一部の機能や表示に影響する場合があります。</p></section>
+          <section><h2>3. Google アナリティクスとCookie</h2><p>本サイトでは、利用状況の把握と改善のためにGoogle アナリティクスを利用します。初回表示時にCookieの利用について選択いただき、「同意する」を選んだ場合に限り、測定ID G-S6GMRTWF52によるGoogle アナリティクスを読み込みます。拒否した場合および選択前は、Google アナリティクスを読み込みません。選択内容はブラウザのCookieに保存され、フッターの「Cookie設定」からいつでも変更できます。Cookieはブラウザの設定により無効化できますが、一部の機能や表示に影響する場合があります。</p></section>
           <section><h2>4. 外部サービスの利用</h2><p>本サイトでは、お知らせの表示にmicroCMSを利用しています。また、SNSページから外部のSNSやサービスへ移動できるリンクを掲載する場合があります。外部サービス上での情報の取り扱いについては、それぞれのサービスが定めるプライバシーポリシーをご確認ください。</p></section>
           <section><h2>5. 第三者提供</h2><p>法令に基づく場合、人の生命・身体・財産の保護に必要な場合、またはご本人の同意をいただいた場合を除き、取得した個人情報を第三者へ提供しません。</p></section>
           <section><h2>6. 安全管理</h2><p>個人情報への不正なアクセス、紛失、改ざん、漏えいなどを防ぐため、情報の性質に応じた合理的な安全管理措置を講じます。</p></section>
