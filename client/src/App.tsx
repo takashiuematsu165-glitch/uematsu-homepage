@@ -322,7 +322,7 @@ function AppShell({ children }: { children: ReactNode }) {
         trackAnalyticsEvent("contact_method_click", { contact_method: contactMethod, link_location: "contact_page" });
         return;
       }
-      if (link.getAttribute("href") === "/contact") {
+      if (["/contact", "#/contact"].includes(link.getAttribute("href") || "")) {
         const linkLocation = link.closest(".site-header") ? "header_navigation" : link.closest(".site-footer") ? "footer_navigation" : "content";
         trackAnalyticsEvent("contact_page_click", { link_location: linkLocation });
       }
