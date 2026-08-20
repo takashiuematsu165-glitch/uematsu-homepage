@@ -68,5 +68,5 @@
 
 - [x] GitHubの認証状態とリポジトリ作成権限を確認する。
 - [x] GitHub Pages用のビルドと公開ワークフローを追加する。
-- [ ] `uematsu-homepage` リポジトリへコードを反映する。
-- [ ] GitHub Pagesの公開URLを確認する。
+- [x] `uematsu-homepage` リポジトリへコードを反映する。
+- [x] GitHub Pagesの公開URLを確認する。

@@ -51,3 +51,9 @@ Cookie同意済みでGoogle タグが読み込まれた場合だけ、`contact_p
 ## Google アナリティクス実ブラウザ検証
 
 開発サーバーを実ブラウザで開き、Cookieの状態を変えて検証した。未同意では測定ID G-S6GMRTWF52のGoogle タグ要求、タグ要素、`gtag`関数のいずれも確認されなかった。同意済みでは同じ測定IDのタグ要求・タグ要素・`gtag`関数を確認し、`contact_page_click`および`social_link_click`イベントがデータレイヤーに追加されることを確認した。拒否時にはタグ要求、タグ要素、`gtag`関数はいずれも確認されなかった。
+
+## GitHub Pages公開準備
+
+GitHubリポジトリ `takashiuematsu165-glitch/uematsu-homepage` を作成し、mainブランチのサイトコードとgh-pagesブランチの静的ビルドを反映した。GitHub API経由のPages有効化は統合トークンの権限不足で拒否されたため、リポジトリのPages設定画面でブランチ公開を有効化する手順へ切り替えた。設定画面でgh-pagesブランチが反映されるまでの短時間は、GitHub側の同期待ちが発生する場合がある。
+
+GitHub Pagesはgh-pagesブランチのルートを公開元として有効化され、公開URLは `https://takashiuematsu165-glitch.github.io/uematsu-homepage/` となった。公開URLを実際に開き、ホーム画面、公開用に複製した画像、Cookieバナー、microCMSのお知らせ表示が正常に表示されることを確認した。
