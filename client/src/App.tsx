@@ -739,7 +739,7 @@ function EmailAddressGate() {
           theme: "light",
           callback: (token) => { void verifyToken(token); },
           "expired-callback": () => setNotice("認証の有効期限が切れました。もう一度認証してください。"),
-          "error-callback": () => setNotice("reCAPTCHAの通信に失敗しました。接続を確認して再度お試しください。"),
+          "error-callback": () => setNotice("認証画面が表示されない場合は、ブラウザの追跡防止・広告ブロック設定を一時的に確認して、もう一度お試しください。"),
         });
       })
       .catch(() => {
