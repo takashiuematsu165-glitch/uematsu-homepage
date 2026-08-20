@@ -386,6 +386,25 @@ function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => { window.history.scrollRestoration = previousScrollRestoration; };
+  }, []);
+
+  useEffect(() => {
+    const scrollToPageTop = () => window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    scrollToPageTop();
+    const firstFrame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scrollToPageTop);
+    });
+    const restorationFallback = window.setTimeout(scrollToPageTop, 120);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.clearTimeout(restorationFallback);
+    };
+  }, [location]);
+
+  useEffect(() => {
     scrollMilestonesRef.current.clear();
     trackPageView();
 
