@@ -5,7 +5,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  Accessibility,
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
@@ -55,6 +57,16 @@ const navItems = [
 ];
 
 type CookieConsentChoice = "accepted" | "rejected";
+type FontScale = "small" | "medium" | "large";
+type SpacingPreference = "standard" | "comfortable";
+
+function getStoredPreference(key: string, expectedValue: string) {
+  try { return window.localStorage.getItem(key) === expectedValue; } catch { return false; }
+}
+
+function prefersReducedMotion() {
+  return getStoredPreference("uematsu-reduced-motion", "enabled") || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 function getCookie(name: string) {
   const prefix = `${encodeURIComponent(name)}=`;
@@ -264,7 +276,7 @@ function useNewsArticle(id?: string) {
 
 function useRevealOnScroll() {
   useEffect(() => {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduceMotion = prefersReducedMotion();
     const revealed = new WeakSet<HTMLElement>();
     const observer = new IntersectionObserver(
       (entries) => {
@@ -312,16 +324,52 @@ function AppShell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [readableMode, setReadableMode] = useState(() => {
-    try { return window.localStorage.getItem("uematsu-readable-mode") === "enhanced"; } catch { return false; }
+  const [accessibilityMenuOpen, setAccessibilityMenuOpen] = useState(false);
+  const [fontScale, setFontScale] = useState<FontScale>(() => {
+    try {
+      const saved = window.localStorage.getItem("uematsu-font-scale");
+      if (saved === "small" || saved === "medium" || saved === "large") return saved;
+      return window.localStorage.getItem("uematsu-readable-mode") === "enhanced" ? "large" : "medium";
+    } catch { return "medium"; }
   });
+  const [highContrast, setHighContrast] = useState(() => {
+    try { return window.localStorage.getItem("uematsu-high-contrast") === "enabled"; } catch { return false; }
+  });
+  const [reducedMotion, setReducedMotion] = useState(() => getStoredPreference("uematsu-reduced-motion", "enabled"));
+  const [linkUnderlines, setLinkUnderlines] = useState(() => getStoredPreference("uematsu-link-underlines", "enabled"));
+  const [lineSpacing, setLineSpacing] = useState<SpacingPreference>(() => getStoredPreference("uematsu-line-spacing", "comfortable") ? "comfortable" : "standard");
+  const [letterSpacing, setLetterSpacing] = useState<SpacingPreference>(() => getStoredPreference("uematsu-letter-spacing", "comfortable") ? "comfortable" : "standard");
+  const [enhancedFocus, setEnhancedFocus] = useState(() => getStoredPreference("uematsu-enhanced-focus", "enabled"));
   const mainRef = useRef<HTMLElement | null>(null);
   const scrollMilestonesRef = useRef(new Set<number>());
 
   useEffect(() => {
-    document.documentElement.dataset.readability = readableMode ? "enhanced" : "default";
-    try { window.localStorage.setItem("uematsu-readable-mode", readableMode ? "enhanced" : "default"); } catch { /* Preference persistence is optional. */ }
-  }, [readableMode]);
+    document.documentElement.dataset.fontScale = fontScale;
+    try { window.localStorage.setItem("uematsu-font-scale", fontScale); } catch { /* Preference persistence is optional. */ }
+  }, [fontScale]);
+
+  useEffect(() => {
+    document.documentElement.dataset.contrast = highContrast ? "high" : "default";
+    try { window.localStorage.setItem("uematsu-high-contrast", highContrast ? "enabled" : "default"); } catch { /* Preference persistence is optional. */ }
+  }, [highContrast]);
+
+  useEffect(() => {
+    const preferences = [
+      ["motion", reducedMotion ? "reduced" : "default"],
+      ["linkUnderlines", linkUnderlines ? "enabled" : "default"],
+      ["lineSpacing", lineSpacing],
+      ["letterSpacing", letterSpacing],
+      ["focusStyle", enhancedFocus ? "enhanced" : "default"],
+    ] as const;
+    preferences.forEach(([key, value]) => { document.documentElement.dataset[key] = value; });
+    try {
+      window.localStorage.setItem("uematsu-reduced-motion", reducedMotion ? "enabled" : "default");
+      window.localStorage.setItem("uematsu-link-underlines", linkUnderlines ? "enabled" : "default");
+      window.localStorage.setItem("uematsu-line-spacing", lineSpacing);
+      window.localStorage.setItem("uematsu-letter-spacing", letterSpacing);
+      window.localStorage.setItem("uematsu-enhanced-focus", enhancedFocus ? "enabled" : "default");
+    } catch { /* Preference persistence is optional. */ }
+  }, [enhancedFocus, letterSpacing, lineSpacing, linkUnderlines, reducedMotion]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -407,7 +455,17 @@ function AppShell({ children }: { children: ReactNode }) {
     const target = mainRef.current;
     if (!target) return;
     target.focus({ preventScroll: true });
-    target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    target.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+  };
+  const scaleLabel = fontScale === "small" ? "小" : fontScale === "large" ? "大" : "標準";
+  const resetAccessibilityPreferences = () => {
+    setFontScale("medium");
+    setHighContrast(false);
+    setReducedMotion(false);
+    setLinkUnderlines(false);
+    setLineSpacing("standard");
+    setLetterSpacing("standard");
+    setEnhancedFocus(false);
   };
 
   return (
@@ -447,12 +505,29 @@ function AppShell({ children }: { children: ReactNode }) {
             {navItems.slice(1).map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}
             <Link href="/privacy">Privacy Policy</Link>
             <button className="footer-cookie-settings" type="button" onClick={() => window.dispatchEvent(new Event(COOKIE_SETTINGS_EVENT))}>Cookie設定</button>
-            <button className="footer-accessibility-toggle" type="button" aria-pressed={readableMode} aria-label={readableMode ? "読みやすい文字表示を解除" : "読みやすい文字表示に切り替え"} onClick={() => setReadableMode((enabled) => !enabled)}>{readableMode ? "標準表示" : "読みやすく表示"}</button>
+            <Popover open={accessibilityMenuOpen} onOpenChange={setAccessibilityMenuOpen}>
+              <PopoverTrigger asChild>
+                <button className="footer-accessibility-menu" type="button" aria-label="アクセシビリティメニューを開く"><Accessibility size={15} aria-hidden="true" />アクセシビリティメニュー</button>
+              </PopoverTrigger>
+              <PopoverContent className="footer-a11y-menu" side="top" align="end" sideOffset={10} aria-label="アクセシビリティメニュー">
+                <div className="footer-a11y-menu__heading"><span className="footer-a11y-menu__icon"><Accessibility size={18} aria-hidden="true" /></span><div><strong>アクセシビリティメニュー</strong><p>読みやすい表示に調整できます。</p></div></div>
+                <div className="footer-a11y-menu__section"><span className="footer-a11y-menu__label">文字サイズ</span><div className="footer-a11y-segment" role="group" aria-label="文字サイズ">{(["small", "medium", "large"] as const).map((size) => <button key={size} type="button" aria-pressed={fontScale === size} onClick={() => setFontScale(size)}>{size === "small" ? "小" : size === "large" ? "大" : "標準"}</button>)}</div></div>
+                <div className="footer-a11y-menu__list">
+                  <button className="footer-a11y-toggle" type="button" aria-pressed={highContrast} onClick={() => setHighContrast((enabled) => !enabled)}><span><strong>コントラストを強調</strong><small>文字と枠線を見分けやすくします</small></span><b>{highContrast ? "オン" : "オフ"}</b></button>
+                  <button className="footer-a11y-toggle" type="button" aria-pressed={reducedMotion} onClick={() => setReducedMotion((enabled) => !enabled)}><span><strong>動きを停止</strong><small>画面の動きとアニメーションを抑えます</small></span><b>{reducedMotion ? "オン" : "オフ"}</b></button>
+                  <button className="footer-a11y-toggle" type="button" aria-pressed={linkUnderlines} onClick={() => setLinkUnderlines((enabled) => !enabled)}><span><strong>リンクに下線を表示</strong><small>本文中のリンクを見つけやすくします</small></span><b>{linkUnderlines ? "オン" : "オフ"}</b></button>
+                  <button className="footer-a11y-toggle" type="button" aria-pressed={lineSpacing === "comfortable"} onClick={() => setLineSpacing((value) => value === "standard" ? "comfortable" : "standard")}><span><strong>行間を広げる</strong><small>文章を追いやすい間隔にします</small></span><b>{lineSpacing === "comfortable" ? "オン" : "オフ"}</b></button>
+                  <button className="footer-a11y-toggle" type="button" aria-pressed={letterSpacing === "comfortable"} onClick={() => setLetterSpacing((value) => value === "standard" ? "comfortable" : "standard")}><span><strong>文字間隔を広げる</strong><small>文字のまとまりを読み取りやすくします</small></span><b>{letterSpacing === "comfortable" ? "オン" : "オフ"}</b></button>
+                  <button className="footer-a11y-toggle" type="button" aria-pressed={enhancedFocus} onClick={() => setEnhancedFocus((enabled) => !enabled)}><span><strong>フォーカス表示を強調</strong><small>キーボード操作中の位置を目立たせます</small></span><b>{enhancedFocus ? "オン" : "オフ"}</b></button>
+                </div>
+                <button className="footer-a11y-reset" type="button" onClick={resetAccessibilityPreferences}>すべて標準に戻す</button>
+              </PopoverContent>
+            </Popover>
           </nav>
           <p className="footer-note">© {new Date().getFullYear()} Koki Uematsu</p>
         </div>
       </footer>
-      <p className="sr-only" aria-live="polite">{readableMode ? "読みやすい文字表示を有効にしました。" : "標準の文字表示です。"}</p>
+      <p className="sr-only" aria-live="polite">{`文字サイズは${scaleLabel}、コントラストは${highContrast ? "強調" : "標準"}、動きの停止は${reducedMotion ? "オン" : "オフ"}です。`}</p>
       <BackToTop />
       <CookieConsent />
     </div>
@@ -474,9 +549,8 @@ function BackToTop() {
   }, []);
 
   const returnToTop = () => {
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     trackAnalyticsEvent("back_to_top_click", { page_path: getAnalyticsPagePath(), scroll_position: Math.round(window.scrollY) });
-    window.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   return <button className={`back-to-top ${visible ? "back-to-top--visible" : ""}`} type="button" aria-label="ページの先頭へ戻る" onClick={returnToTop}><ArrowUp size={18} aria-hidden="true" /><span>Top</span></button>;
