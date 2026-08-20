@@ -383,8 +383,8 @@ function AppShell({ children }: { children: ReactNode }) {
         trackAnalyticsEvent("outbound_link_click", { link_domain: link.hostname, link_text: linkText, page_path: getAnalyticsPagePath() });
       }
     };
-    document.addEventListener("click", trackLinkClick);
-    return () => document.removeEventListener("click", trackLinkClick);
+    document.addEventListener("click", trackLinkClick, true);
+    return () => document.removeEventListener("click", trackLinkClick, true);
   }, []);
 
   const isActive = (href: string) => (href === "/" ? location === "/" : location.startsWith(href));
