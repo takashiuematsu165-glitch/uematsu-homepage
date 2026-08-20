@@ -66,16 +66,17 @@ function saveCookieConsent(choice: CookieConsentChoice) {
 }
 
 function getGoogleAnalyticsWindow() {
-  return window as Window & { dataLayer?: unknown[][]; gtag?: (...args: unknown[]) => void };
+  return window as Window & { dataLayer?: IArguments[]; gtag?: (...args: unknown[]) => void };
 }
 
 function loadAnalyticsAfterConsent() {
   if (document.querySelector("script[data-consent-google-analytics='true']")) return;
   const analyticsWindow = getGoogleAnalyticsWindow();
   analyticsWindow.dataLayer ??= [];
-  analyticsWindow.gtag = (...args: unknown[]) => analyticsWindow.dataLayer?.push(args);
+  analyticsWindow.gtag = function (..._args: unknown[]) {
+    analyticsWindow.dataLayer?.push(arguments);
+  };
   analyticsWindow.gtag("js", new Date());
-  analyticsWindow.gtag("consent", "default", { analytics_storage: "granted" });
   analyticsWindow.gtag("config", GOOGLE_ANALYTICS_MEASUREMENT_ID);
   const script = document.createElement("script");
   script.async = true;
