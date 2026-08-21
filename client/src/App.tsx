@@ -82,6 +82,7 @@ function saveCookieConsent(choice: CookieConsentChoice) {
   const oneYearInSeconds = 60 * 60 * 24 * 365;
   const secureAttribute = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${encodeURIComponent(COOKIE_CONSENT_NAME)}=${encodeURIComponent(choice)}; Path=/; Max-Age=${oneYearInSeconds}; SameSite=Lax${secureAttribute}`;
+  return getCookie(COOKIE_CONSENT_NAME) === choice;
 }
 
 function getGoogleAnalyticsWindow() {
@@ -89,25 +90,31 @@ function getGoogleAnalyticsWindow() {
 }
 
 function loadAnalyticsAfterConsent() {
-  if (document.querySelector("script[data-consent-google-analytics='true']")) return;
+  const existingScript = document.querySelector("script[data-consent-google-analytics='true']");
   const analyticsWindow = getGoogleAnalyticsWindow();
   analyticsWindow.dataLayer ??= [];
-  analyticsWindow.gtag = function (..._args: unknown[]) {
+  analyticsWindow.gtag ??= function (..._args: unknown[]) {
     analyticsWindow.dataLayer?.push(arguments);
   };
-  analyticsWindow.gtag("js", new Date());
-  analyticsWindow.gtag("config", GOOGLE_ANALYTICS_MEASUREMENT_ID, { send_page_view: false });
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_MEASUREMENT_ID)}`;
-  script.dataset.consentGoogleAnalytics = "true";
-  document.head.appendChild(script);
+  if (!existingScript) {
+    analyticsWindow.gtag("js", new Date());
+    analyticsWindow.gtag("consent", "default", { analytics_storage: "denied", ad_storage: "denied" });
+  }
+  analyticsWindow.gtag("consent", "update", { analytics_storage: "granted", ad_storage: "denied" });
+  if (!existingScript) {
+    analyticsWindow.gtag("config", GOOGLE_ANALYTICS_MEASUREMENT_ID, { send_page_view: false });
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ANALYTICS_MEASUREMENT_ID)}`;
+    script.dataset.consentGoogleAnalytics = "true";
+    document.head.appendChild(script);
+  }
   trackPageView();
 }
 
 function revokeGoogleAnalyticsConsent() {
   const analyticsWindow = getGoogleAnalyticsWindow();
-  analyticsWindow.gtag?.("consent", "update", { analytics_storage: "denied" });
+  analyticsWindow.gtag?.("consent", "update", { analytics_storage: "denied", ad_storage: "denied" });
   document.cookie.split(";").map((item) => item.trim().split("=")[0]).filter((name) => name.startsWith("_ga")).forEach((name) => {
     document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
   });
@@ -662,6 +669,7 @@ function CookieConsent() {
     return saved === "accepted" || saved === "rejected" ? saved : null;
   });
   const [isOpen, setIsOpen] = useState(() => !choice);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     if (choice === "accepted") loadAnalyticsAfterConsent();
@@ -669,13 +677,22 @@ function CookieConsent() {
   }, [choice]);
 
   useEffect(() => {
-    const openSettings = () => setIsOpen(true);
+    const openSettings = () => {
+      setSaveError("");
+      setIsOpen(true);
+    };
     window.addEventListener(COOKIE_SETTINGS_EVENT, openSettings);
     return () => window.removeEventListener(COOKIE_SETTINGS_EVENT, openSettings);
   }, []);
 
   const setConsent = (nextChoice: CookieConsentChoice) => {
-    saveCookieConsent(nextChoice);
+    if (!saveCookieConsent(nextChoice)) {
+      setChoice(null);
+      setSaveError("設定を保存できませんでした。ブラウザでCookieを許可してから、もう一度選択してください。");
+      setIsOpen(true);
+      return;
+    }
+    setSaveError("");
     setChoice(nextChoice);
     setIsOpen(false);
   };
@@ -685,7 +702,7 @@ function CookieConsent() {
   return (
     <aside className="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookieの設定">
       <div className="cookie-banner__copy"><div className="cookie-banner__heading"><span className="cookie-banner__seal"><ShieldCheck size={19} aria-hidden="true" /></span><div><p className="cookie-banner__eyebrow">Privacy controls</p><h2>{isSettings ? "Cookieの設定を変更" : "Cookieの利用について"}</h2></div></div><p>本サイトでは、利用状況の把握と改善のためにGoogle アナリティクスのCookieを使用します。同意を選んだ場合のみ、Google アナリティクスを読み込みます。</p></div>
-      <div className="cookie-banner__actions"><Link className="cookie-policy-link" href="/privacy"><span>プライバシーポリシー</span><ArrowRight size={15} aria-hidden="true" /></Link><div className="cookie-banner__choices"><button className="cookie-button cookie-button--secondary" type="button" onClick={() => setConsent("rejected")}>拒否する</button><button className="cookie-button cookie-button--primary" type="button" onClick={() => setConsent("accepted")}>同意する</button></div></div>
+      <div className="cookie-banner__actions"><Link className="cookie-policy-link" href="/privacy"><span>プライバシーポリシー</span><ArrowRight size={15} aria-hidden="true" /></Link><div className="cookie-banner__choices"><button className="cookie-button cookie-button--secondary" type="button" onClick={() => setConsent("rejected")}>拒否する</button><button className="cookie-button cookie-button--primary" type="button" onClick={() => setConsent("accepted")}>同意する</button></div>{saveError && <p className="cookie-banner__error" aria-live="assertive">{saveError}</p>}</div>
     </aside>
   );
 }
