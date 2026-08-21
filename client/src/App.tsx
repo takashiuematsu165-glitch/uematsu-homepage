@@ -47,6 +47,8 @@ const COOKIE_CONSENT_NAME = "koki_cookie_consent";
 const COOKIE_SETTINGS_EVENT = "koki:open-cookie-settings";
 const GOOGLE_ANALYTICS_MEASUREMENT_ID = "G-S6GMRTWF52";
 const EMAIL_GATE_ENDPOINT = "https://uematsu-email-gate.takashiuematsu165.workers.dev";
+const PUBLIC_SITE_ORIGIN = "https://takashiuematsu165-glitch.github.io";
+const PUBLIC_SITE_PATH = "/uematsu-homepage";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -188,6 +190,75 @@ function sanitizeArticleHtml(value?: string) {
     });
   });
   return documentFragment.body.innerHTML;
+}
+
+function getNewsShareUrl(id: string) {
+  return `${PUBLIC_SITE_ORIGIN}${PUBLIC_SITE_PATH}/news/${encodeURIComponent(id)}/`;
+}
+
+function getNewsOgImageUrl(id: string) {
+  return `${PUBLIC_SITE_ORIGIN}${PUBLIC_SITE_PATH}/assets/og/news-${encodeURIComponent(id)}.png`;
+}
+
+function setDocumentMeta(attribute: "name" | "property", key: string, content: string) {
+  let meta = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
+  const isNew = !meta;
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.setAttribute(attribute, key);
+    document.head.appendChild(meta);
+  }
+  const previousContent = meta.getAttribute("content");
+  meta.setAttribute("content", content);
+  return () => {
+    if (isNew) meta?.remove();
+    else if (previousContent === null) meta?.removeAttribute("content");
+    else meta?.setAttribute("content", previousContent);
+  };
+}
+
+function ArticleSocialMeta({ article, id }: { article: NewsItem; id: string }) {
+  useEffect(() => {
+    const title = `${article.title || "お知らせ"} | 植松康希`;
+    const description = newsExcerpt(article);
+    const shareUrl = getNewsShareUrl(id);
+    const imageUrl = getNewsOgImageUrl(id);
+    const previousTitle = document.title;
+    const cleanups = [
+      setDocumentMeta("name", "description", description),
+      setDocumentMeta("property", "og:type", "article"),
+      setDocumentMeta("property", "og:title", title),
+      setDocumentMeta("property", "og:description", description),
+      setDocumentMeta("property", "og:url", shareUrl),
+      setDocumentMeta("property", "og:image", imageUrl),
+      setDocumentMeta("property", "og:image:alt", `${article.title || "お知らせ"}のOGP画像`),
+      setDocumentMeta("property", "og:image:width", "1200"),
+      setDocumentMeta("property", "og:image:height", "630"),
+      setDocumentMeta("name", "twitter:card", "summary_large_image"),
+      setDocumentMeta("name", "twitter:title", title),
+      setDocumentMeta("name", "twitter:description", description),
+      setDocumentMeta("name", "twitter:image", imageUrl),
+    ];
+    if (article.publishedAt) cleanups.push(setDocumentMeta("property", "article:published_time", article.publishedAt));
+    let canonical = document.head.querySelector<HTMLLinkElement>("link[rel='canonical']");
+    const canonicalIsNew = !canonical;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    const previousCanonical = canonical.getAttribute("href");
+    canonical.href = shareUrl;
+    document.title = title;
+    return () => {
+      cleanups.reverse().forEach((cleanup) => cleanup());
+      document.title = previousTitle;
+      if (canonicalIsNew) canonical?.remove();
+      else if (previousCanonical === null) canonical?.removeAttribute("href");
+      else canonical?.setAttribute("href", previousCanonical);
+    };
+  }, [article, id]);
+  return null;
 }
 
 function useNewsList(limit: number) {
@@ -727,13 +798,26 @@ function NewsPage() {
 function NewsArticlePage() {
   const { id } = useParams<{ id: string }>();
   const article = useNewsArticle(id);
+  const [shareNotice, setShareNotice] = useState("");
+  const shareUrl = id ? getNewsShareUrl(id) : "";
+
+  const copyShareLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareNotice("共有用リンクをコピーしました。");
+      trackAnalyticsEvent("news_share_link_copy", { article_id: id || "unknown", page_path: getAnalyticsPagePath() });
+    } catch {
+      setShareNotice("コピーできませんでした。表示中の共有用リンクをコピーしてください。");
+    }
+  };
 
   return (
     <AppShell>
       <section className="content-section article-section">
         {article.status === "loading" && <div className="news-state" data-reveal><Newspaper size={19} aria-hidden="true" /><p>記事を読み込み中です。</p></div>}
         {article.status === "error" && <div className="news-state news-state--error" data-reveal><CircleAlert size={19} aria-hidden="true" /><p>記事を取得できませんでした。</p><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></div>}
-        {article.status === "ready" && article.data && <article className="article-card" data-reveal><p className="eyebrow">{formatNewsDate(article.data.publishedAt) || "News"}</p><h1 className="article-title">{article.data.title || "お知らせ"}</h1><div className="article-body" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.data.content || article.data.description || "") }} /><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></article>}
+        {article.status === "ready" && article.data && <><ArticleSocialMeta article={article.data} id={id || article.data.id} /><article className="article-card" data-reveal><p className="eyebrow">{formatNewsDate(article.data.publishedAt) || "News"}</p><h1 className="article-title">{article.data.title || "お知らせ"}</h1><div className="article-body" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.data.content || article.data.description || "") }} /><div className="article-share"><span>共有用リンク</span><a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}<ArrowUpRight size={15} aria-hidden="true" /></a><button type="button" onClick={() => void copyShareLink()}><Link2 size={15} aria-hidden="true" />リンクをコピー</button>{shareNotice && <p aria-live="polite">{shareNotice}</p>}</div><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></article></>}
       </section>
     </AppShell>
   );
