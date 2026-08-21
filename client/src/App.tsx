@@ -595,7 +595,6 @@ function AppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
         </div>
-        <p className="header-recaptcha-notice"><ShieldCheck size={12} aria-hidden="true" /><span>reCAPTCHA Enterpriseで保護されています。</span><a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">プライバシー</a><span>・</span><a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">利用規約</a></p>
       </header>
       <main id="main-content" ref={mainRef} tabIndex={-1}>{children}</main>
       <footer className="site-footer">
@@ -625,6 +624,7 @@ function AppShell({ children }: { children: ReactNode }) {
             </Popover>
           </nav>
           <p className="footer-note">© {new Date().getFullYear()} Koki Uematsu</p>
+          <p className="footer-recaptcha-notice"><ShieldCheck size={12} aria-hidden="true" /><span>reCAPTCHA Enterpriseで保護されています。</span><a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">プライバシー</a><span>・</span><a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">利用規約</a></p>
         </div>
       </footer>
       <p className="sr-only" aria-live="polite">{`文字サイズは${scaleLabel}、コントラストは${highContrast ? "強調" : "標準"}、動きの停止は${reducedMotion ? "オン" : "オフ"}です。`}</p>
