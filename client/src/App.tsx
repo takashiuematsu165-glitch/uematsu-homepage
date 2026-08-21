@@ -506,6 +506,8 @@ function AppShell({ children }: { children: ReactNode }) {
       const ctaName = link.dataset.analyticsCta;
       const newsId = link.dataset.analyticsNewsId;
       const newsTitle = link.dataset.analyticsNewsTitle;
+      const shareNetwork = link.dataset.analyticsShareNetwork;
+      const shareArticleId = link.dataset.analyticsShareArticleId;
       const href = link.getAttribute("href") || "";
       const linkText = link.textContent?.replace(/\s+/g, " ").trim() || "未設定";
       const navigationArea = link.closest(".site-header") ? "header" : link.closest(".site-footer") ? "footer" : "content";
@@ -520,6 +522,9 @@ function AppShell({ children }: { children: ReactNode }) {
       }
       if (newsId) {
         trackAnalyticsEvent("news_article_click", { article_id: newsId, article_title: newsTitle || "お知らせ", page_path: getAnalyticsPagePath() });
+      }
+      if (shareNetwork) {
+        trackAnalyticsEvent("news_share_click", { social_network: shareNetwork, article_id: shareArticleId || "unknown", page_path: getAnalyticsPagePath() });
       }
       if (["/contact", "#/contact"].includes(href)) {
         const linkLocation = navigationArea === "header" ? "header_navigation" : navigationArea === "footer" ? "footer_navigation" : "content";
@@ -800,6 +805,9 @@ function NewsArticlePage() {
   const article = useNewsArticle(id);
   const [shareNotice, setShareNotice] = useState("");
   const shareUrl = id ? getNewsShareUrl(id) : "";
+  const shareTitle = article.data?.title ? `${article.data.title} | 植松康希` : "植松康希のお知らせ";
+  const encodedShareUrl = encodeURIComponent(shareUrl);
+  const encodedShareTitle = encodeURIComponent(shareTitle);
 
   const copyShareLink = async () => {
     if (!shareUrl) return;
@@ -817,7 +825,7 @@ function NewsArticlePage() {
       <section className="content-section article-section">
         {article.status === "loading" && <div className="news-state" data-reveal><Newspaper size={19} aria-hidden="true" /><p>記事を読み込み中です。</p></div>}
         {article.status === "error" && <div className="news-state news-state--error" data-reveal><CircleAlert size={19} aria-hidden="true" /><p>記事を取得できませんでした。</p><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></div>}
-        {article.status === "ready" && article.data && <><ArticleSocialMeta article={article.data} id={id || article.data.id} /><article className="article-card" data-reveal><p className="eyebrow">{formatNewsDate(article.data.publishedAt) || "News"}</p><h1 className="article-title">{article.data.title || "お知らせ"}</h1><div className="article-body" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.data.content || article.data.description || "") }} /><div className="article-share"><span>共有用リンク</span><a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}<ArrowUpRight size={15} aria-hidden="true" /></a><button type="button" onClick={() => void copyShareLink()}><Link2 size={15} aria-hidden="true" />リンクをコピー</button>{shareNotice && <p aria-live="polite">{shareNotice}</p>}</div><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></article></>}
+        {article.status === "ready" && article.data && <><ArticleSocialMeta article={article.data} id={id || article.data.id} /><article className="article-card" data-reveal><p className="eyebrow">{formatNewsDate(article.data.publishedAt) || "News"}</p><h1 className="article-title">{article.data.title || "お知らせ"}</h1><div className="article-body" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.data.content || article.data.description || "") }} /><div className="article-share"><div className="article-share__heading"><span>この記事をシェア</span><small>タイトル・画像付きで共有できます。</small></div><div className="article-share__networks" aria-label="SNSで記事をシェア"><a className="article-share__network article-share__network--x" href={`https://twitter.com/intent/tweet?text=${encodedShareTitle}&url=${encodedShareUrl}`} target="_blank" rel="noreferrer" data-analytics-share-network="X" data-analytics-share-article-id={article.data.id}><b aria-hidden="true">𝕏</b><span>Xでシェア</span></a><a className="article-share__network article-share__network--facebook" href={`https://www.facebook.com/sharer/sharer.php?u=${encodedShareUrl}`} target="_blank" rel="noreferrer" data-analytics-share-network="Facebook" data-analytics-share-article-id={article.data.id}><b aria-hidden="true">f</b><span>Facebook</span></a><a className="article-share__network article-share__network--line" href={`https://social-plugins.line.me/lineit/share?url=${encodedShareUrl}`} target="_blank" rel="noreferrer" data-analytics-share-network="LINE" data-analytics-share-article-id={article.data.id}><b aria-hidden="true">L</b><span>LINE</span></a></div><div className="article-share__link"><span>共有用リンク</span><a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}<ArrowUpRight size={15} aria-hidden="true" /></a><button type="button" onClick={() => void copyShareLink()}><Link2 size={15} aria-hidden="true" />リンクをコピー</button></div>{shareNotice && <p aria-live="polite">{shareNotice}</p>}</div><Link className="text-link" href="/news">お知らせ一覧へ戻る <ArrowRight size={17} /></Link></article></>}
       </section>
     </AppShell>
   );
