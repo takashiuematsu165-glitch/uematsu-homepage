@@ -595,6 +595,7 @@ function AppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
         </div>
+        <p className="header-recaptcha-notice"><ShieldCheck size={12} aria-hidden="true" /><span>reCAPTCHA Enterpriseで保護されています。</span><a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">プライバシー</a><span>・</span><a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">利用規約</a></p>
       </header>
       <main id="main-content" ref={mainRef} tabIndex={-1}>{children}</main>
       <footer className="site-footer">
@@ -937,15 +938,10 @@ function loadRecaptchaScript(siteKey: string) {
   });
 }
 
-function RecaptchaDisclosure() {
-  return <aside className="recaptcha-disclosure" aria-label="reCAPTCHAに関するお知らせ"><ShieldCheck size={16} aria-hidden="true" /><p>このサイトはreCAPTCHA Enterpriseによって保護されています。<a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">プライバシー</a><span>・</span><a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">利用規約</a><span>が適用されます。</span></p></aside>;
-}
-
 function EmailAddressGate() {
   const [status, setStatus] = useState<EmailGateStatus>("idle");
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState("");
-  const [hasRecaptchaDisclosure, setHasRecaptchaDisclosure] = useState(false);
 
   const verifyToken = async (token: string) => {
     setStatus("verifying");
@@ -978,7 +974,6 @@ function EmailAddressGate() {
     setStatus("loading");
     setNotice("");
     setEmail("");
-    setHasRecaptchaDisclosure(true);
     try {
       const response = await fetch(`${EMAIL_GATE_ENDPOINT}/api/config`);
       const payload = await response.json() as { siteKey?: string };
@@ -1008,15 +1003,13 @@ function EmailAddressGate() {
     }
   };
 
-  return <>
-    <article className="contact-card contact-card--email" data-reveal>
+  return <article className="contact-card contact-card--email" data-reveal>
       <div className="contact-card__top"><span className="contact-icon contact-icon--primary"><Mail size={22} /></span><span className="contact-status"><ShieldCheck size={14} aria-hidden="true" />認証後に表示</span></div>
       <div><h2>メール</h2><p>内容を整理して送る場合におすすめです。メールアドレスは認証後に表示されます。</p></div>
       {status === "revealed" ? <div className="email-gate__revealed"><a className="email-gate__address" href={`mailto:${email}`} data-analytics-contact-method="メール">{email}</a><button className="email-gate__button email-gate__button--copy" type="button" onClick={() => void copyEmail()}><Copy size={16} aria-hidden="true" />メールアドレスをコピー</button></div> : <div className="email-gate__challenge"><button className="email-gate__button" type="button" onClick={() => void startChallenge()} disabled={status === "loading" || status === "verifying"}>{status === "loading" || status === "verifying" ? <><LoaderCircle className="email-gate__spinner" size={16} aria-hidden="true" />認証を確認中</> : "メールアドレスをコピー"}</button>{status === "error" && <button className="email-gate__retry" type="button" onClick={() => void startChallenge()}>認証をやり直す</button>}</div>}
       {notice && <p className={`email-gate__notice ${status === "error" ? "is-error" : ""}`} aria-live="polite">{notice}</p>}
     </article>
-    {hasRecaptchaDisclosure && <RecaptchaDisclosure />}
-  </>;
+  ;
 }
 
 function ContactPage() {
