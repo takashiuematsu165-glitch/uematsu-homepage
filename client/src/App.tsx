@@ -20,6 +20,7 @@ import {
   Code2,
   Clock3,
   Copy,
+  Eye,
   Instagram,
   Link2,
   LoaderCircle,
@@ -316,7 +317,7 @@ function useCategoryList() {
   return state;
 }
 
-function useNewsArticle(id?: string) {
+function useNewsArticle(id?: string, draftKey?: string) {
   const [state, setState] = useState<FetchState<NewsItem | null>>({ status: "loading", data: null });
 
   useEffect(() => {
@@ -326,7 +327,9 @@ function useNewsArticle(id?: string) {
     }
     const controller = new AbortController();
     setState({ status: "loading", data: null });
-    fetch(`${MICROCMS_NEWS_ENDPOINT}/${encodeURIComponent(id)}`, {
+    const articleUrl = new URL(`${MICROCMS_NEWS_ENDPOINT}/${encodeURIComponent(id)}`);
+    if (draftKey) articleUrl.searchParams.set("draftKey", draftKey);
+    fetch(articleUrl, {
       headers: { "X-MICROCMS-API-KEY": MICROCMS_API_KEY },
       signal: controller.signal,
     })
@@ -340,7 +343,7 @@ function useNewsArticle(id?: string) {
         setState({ status: "error", data: null });
       });
     return () => controller.abort();
-  }, [id]);
+  }, [draftKey, id]);
 
   return state;
 }
@@ -831,6 +834,41 @@ function NewsArticlePage() {
   );
 }
 
+function PreviewArticleMeta({ article }: { article: NewsItem }) {
+  useEffect(() => {
+    const previousTitle = document.title;
+    const cleanups = [
+      setDocumentMeta("name", "robots", "noindex,nofollow,noarchive"),
+      setDocumentMeta("name", "description", newsExcerpt(article)),
+    ];
+    document.title = `プレビュー：${article.title || "お知らせ"} | 植松康希`;
+    return () => {
+      cleanups.reverse().forEach((cleanup) => cleanup());
+      document.title = previousTitle;
+    };
+  }, [article]);
+  return null;
+}
+
+function PreviewArticlePage() {
+  const previewParams = new URLSearchParams(window.location.search);
+  const contentId = previewParams.get("contentId") || previewParams.get("CONTENT_ID") || "";
+  const draftKey = previewParams.get("draftKey") || previewParams.get("DRAFT_KEY") || "";
+  const hasContentId = Boolean(contentId);
+  const article = useNewsArticle(hasContentId ? contentId : undefined, draftKey || undefined);
+
+  return (
+    <AppShell>
+      <section className="content-section article-section preview-section">
+        {!hasContentId && <div className="preview-state preview-state--error" data-reveal><CircleAlert size={20} aria-hidden="true" /><div><h1>プレビュー情報を確認できません</h1><p>microCMSの画面プレビューボタンから開くか、記事IDを含むURLを使用してください。</p></div></div>}
+        {hasContentId && article.status === "loading" && <div className="preview-state" data-reveal><Eye size={20} aria-hidden="true" /><p>下書き記事のプレビューを読み込み中です。</p></div>}
+        {hasContentId && article.status === "error" && <div className="preview-state preview-state--error" data-reveal><CircleAlert size={20} aria-hidden="true" /><div><h1>プレビューを表示できません</h1><p>プレビューキーの期限切れ、または記事の取得に失敗しました。microCMSからもう一度プレビューを開いてください。</p></div></div>}
+        {hasContentId && article.status === "ready" && article.data && <><PreviewArticleMeta article={article.data} /><article className="article-card" data-reveal><div className="preview-banner"><span><Eye size={17} aria-hidden="true" />microCMS Preview</span><p>これは公開前の下書きプレビューです。公開後の見た目を確認できます。</p></div><p className="eyebrow">{formatNewsDate(article.data.publishedAt) || "Preview"}</p><h1 className="article-title">{article.data.title || "お知らせ"}</h1><div className="article-body" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.data.content || article.data.description || "") }} /></article></>}
+      </section>
+    </AppShell>
+  );
+}
+
 type ContactMethodProps = {
   icon: ReactNode;
   name: string;
@@ -1054,7 +1092,7 @@ function NotFoundPage() {
 }
 
 function Router() {
-  return <Switch><Route path="/" component={HomePage} /><Route path="/profile" component={ProfilePage} /><Route path="/news/:id" component={NewsArticlePage} /><Route path="/news" component={NewsPage} /><Route path="/sns" component={SocialPage} /><Route path="/contact" component={ContactPage} /><Route path="/privacy" component={PrivacyPage} /><Route component={NotFoundPage} /></Switch>;
+  return <Switch><Route path="/" component={HomePage} /><Route path="/preview" component={PreviewArticlePage} /><Route path="/profile" component={ProfilePage} /><Route path="/news/:id" component={NewsArticlePage} /><Route path="/news" component={NewsPage} /><Route path="/sns" component={SocialPage} /><Route path="/contact" component={ContactPage} /><Route path="/privacy" component={PrivacyPage} /><Route component={NotFoundPage} /></Switch>;
 }
 
 export default function App() { return <WouterRouter hook={useHashLocation}><Router /></WouterRouter>; }
